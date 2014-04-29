@@ -22,15 +22,26 @@ package biz.bokhorst.am;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 public class BootReceiver extends BroadcastReceiver {
 
 	@Override
 	public void onReceive(final Context context, final Intent intent) {
-		Log.w("AM", "Boot receiver, action=" + intent.getAction());
+		Log.w("AM", "Receiver, action=" + intent.getAction());
 		Intent initService = new Intent(context, BackgroundService.class);
 		initService.setAction(BackgroundService.ACTION_START);
 		context.startService(initService);
+
+		// Reset step counter
+		if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
+			Log.w("AM", "Resetting step count");
+			SharedPreferences prefs = context.getSharedPreferences("activity",
+					Context.MODE_MULTI_PROCESS);
+			SharedPreferences.Editor editor = prefs.edit();
+			editor.putInt("Steps", 0);
+			editor.commit();
+		}
 	}
 }

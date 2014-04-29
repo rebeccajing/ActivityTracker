@@ -36,6 +36,7 @@ import android.app.IntentService;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -222,10 +223,24 @@ public class BackgroundService extends IntentService implements
 	}
 
 	private void handleStepsChanged(Intent intent) {
+		SharedPreferences prefs = getSharedPreferences("activity",
+				Context.MODE_MULTI_PROCESS);
+
 		int steps = intent.getIntExtra(ACTION_STEPS, -1);
-		Log.w(TAG, "Steps=" + steps);
-		new DatabaseHelper(this).registerDetail(new Date().getTime(),
-				DatabaseHelper.TYPE_LOCATION, Integer.toString(steps));
+		int last = prefs.getInt("Steps", 0);
+		int delta = steps - last;
+		Log.w(TAG, "Steps=" + steps + " Delta=" + delta);
+
+		int minDelta = 10; // TODO: setting
+		if (delta >= minDelta) {
+			Log.w(TAG, "Updating steps");
+			SharedPreferences.Editor editor = prefs.edit();
+			editor.putInt("Steps", steps);
+			editor.commit();
+
+			new DatabaseHelper(this).registerDetail(new Date().getTime(),
+					DatabaseHelper.TYPE_STEPS, Integer.toString(delta));
+		}
 	}
 
 	// Helper methods
