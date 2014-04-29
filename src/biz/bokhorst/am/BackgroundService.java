@@ -225,8 +225,8 @@ public class BackgroundService extends IntentService implements
 				Locale.getDefault());
 		for (DetectedActivity activity : result.getProbableActivities())
 			Log.w(TAG, TIME_FORMATTER.format(new Date(result.getTime()))
-					+ " Activity " + getNameFromType(activity.getType()) + " "
-					+ activity.getConfidence() + " %");
+					+ " Activity " + getNameFromType(this, activity.getType())
+					+ " " + activity.getConfidence() + " %");
 	}
 
 	private void handleLocationChanged(Intent intent) {
@@ -277,21 +277,23 @@ public class BackgroundService extends IntentService implements
 
 	// Helper methods
 
-	private String getNameFromType(int activityType) {
+	public static String getNameFromType(Context context, int activityType) {
 		switch (activityType) {
+		case -1:
+			return "Boot";
 		case DetectedActivity.IN_VEHICLE:
-			return getString(R.string.activity_in_vehicle);
+			return context.getString(R.string.activity_in_vehicle);
 		case DetectedActivity.ON_BICYCLE:
-			return getString(R.string.activity_on_bicycle);
+			return context.getString(R.string.activity_on_bicycle);
 		case DetectedActivity.ON_FOOT:
-			return getString(R.string.activity_on_foot);
+			return context.getString(R.string.activity_on_foot);
 		case DetectedActivity.STILL:
-			return getString(R.string.activity_still);
+			return context.getString(R.string.activity_still);
 		case DetectedActivity.UNKNOWN:
-			return getString(R.string.activity_unknown);
+			return context.getString(R.string.activity_unknown);
 		case DetectedActivity.TILTING:
-			return getString(R.string.activity_tilting);
+			return context.getString(R.string.activity_tilting);
 		}
-		return getString(R.string.activity_unknown);
+		return context.getString(R.string.activity_unknown);
 	}
 }

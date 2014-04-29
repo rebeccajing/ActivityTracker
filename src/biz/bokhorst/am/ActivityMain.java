@@ -19,19 +19,39 @@ package biz.bokhorst.am;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+
 import android.app.Activity;
-import android.app.ActionBar;
 import android.app.Fragment;
-import android.content.Intent;
+import android.content.Context;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.os.Build;
+import android.widget.BaseExpandableListAdapter;
+import android.widget.ExpandableListView;
+import android.widget.TextView;
 
 public class ActivityMain extends Activity {
+	private static ExecutorService mExecutor = Executors.newFixedThreadPool(
+			Runtime.getRuntime().availableProcessors(),
+			new PriorityThreadFactory());
+
+	private static class PriorityThreadFactory implements ThreadFactory {
+		@Override
+		public Thread newThread(Runnable r) {
+			Thread t = new Thread(r);
+			t.setPriority(Thread.NORM_PRIORITY);
+			return t;
+		}
+	}
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -46,27 +66,18 @@ public class ActivityMain extends Activity {
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-
-		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.activity_main, menu);
 		return true;
 	}
 
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
-		// Handle action bar item clicks here. The action bar will
-		// automatically handle clicks on the Home/Up button, so long
-		// as you specify a parent activity in AndroidManifest.xml.
 		int id = item.getItemId();
-		if (id == R.id.action_settings) {
+		if (id == R.id.action_settings)
 			return true;
-		}
 		return super.onOptionsItemSelected(item);
 	}
 
-	/**
-	 * A placeholder fragment containing a simple view.
-	 */
 	public static class PlaceholderFragment extends Fragment {
 
 		public PlaceholderFragment() {
@@ -77,8 +88,216 @@ public class ActivityMain extends Activity {
 				Bundle savedInstanceState) {
 			View rootView = inflater.inflate(R.layout.fragment_activity_main,
 					container, false);
+
 			return rootView;
 		}
-	}
 
+		@Override
+		public void onViewCreated(View view, Bundle savedInstanceState) {
+			ExpandableListView lvActivity = (ExpandableListView) getActivity()
+					.findViewById(R.id.elvActivity);
+			lvActivity.setAdapter(new ActivityAdapter(R.layout.activity_root));
+
+			super.onViewCreated(view, savedInstanceState);
+		}
+
+		private class ActivityAdapter extends BaseExpandableListAdapter {
+			private DatabaseHelper mDatabaseHelper = null;
+			private LayoutInflater mInflater = (LayoutInflater) getActivity()
+					.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+			public ActivityAdapter(int resource) {
+				mDatabaseHelper = new DatabaseHelper(getActivity());
+			}
+
+			@Override
+			public Object getGroup(int groupPosition) {
+				return groupPosition + 1;
+			}
+
+			@Override
+			public int getGroupCount() {
+				return mDatabaseHelper.getActivityCount();
+			}
+
+			@Override
+			public long getGroupId(int groupPosition) {
+				return groupPosition * 1000;
+			}
+
+			private class GroupViewHolder {
+				private View row;
+				private int position;
+				public TextView tvStart;
+				public TextView tvStop;
+				public TextView tvActivity;
+				public TextView tvConfidence;
+
+				public GroupViewHolder(View theRow, int thePosition) {
+					row = theRow;
+					position = thePosition;
+					tvStart = (TextView) row.findViewById(R.id.tvStart);
+					tvStop = (TextView) row.findViewById(R.id.tvStop);
+					tvActivity = (TextView) row.findViewById(R.id.tvActivity);
+					tvConfidence = (TextView) row
+							.findViewById(R.id.tvConfidence);
+				}
+			}
+
+			private class GroupHolderTask extends
+					AsyncTask<Object, Object, Object> {
+				private int position;
+				private GroupViewHolder holder;
+				private int id;
+				private DatabaseHelper.Activity activity;
+
+				public GroupHolderTask(int thePosition,
+						GroupViewHolder theHolder, int theId) {
+					position = thePosition;
+					holder = theHolder;
+					id = theId;
+				}
+
+				@Override
+				protected Object doInBackground(Object... params) {
+					activity = mDatabaseHelper.getActivity(id);
+					return activity;
+				}
+
+				@Override
+				protected void onPostExecute(Object result) {
+					if (holder.position == position && result != null) {
+						SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat(
+								"HH:mm:ss", Locale.getDefault());
+
+						// Set data
+						holder.tvStart.setText(TIME_FORMATTER
+								.format(activity.start));
+						holder.tvStop.setText(TIME_FORMATTER
+								.format(activity.stop));
+						holder.tvActivity.setText(BackgroundService
+								.getNameFromType(getActivity(),
+										activity.activity));
+						holder.tvConfidence.setText(String.format("%d %%",
+								activity.confidence));
+					}
+				}
+			}
+
+			@Override
+			public View getGroupView(int groupPosition, boolean isExpanded,
+					View convertView, ViewGroup parent) {
+				GroupViewHolder holder;
+				if (convertView == null) {
+					convertView = mInflater.inflate(R.layout.activity_root,
+							null);
+					holder = new GroupViewHolder(convertView, groupPosition);
+					convertView.setTag(holder);
+				} else {
+					holder = (GroupViewHolder) convertView.getTag();
+					holder.position = groupPosition;
+				}
+
+				// Get entry
+				int id = (Integer) getGroup(groupPosition);
+
+				// TODO: set indicator
+
+				// Async update
+				new GroupHolderTask(groupPosition, holder, id)
+						.executeOnExecutor(mExecutor, (Object) null);
+
+				return convertView;
+			}
+
+			@Override
+			public Object getChild(int groupPosition, int childPosition) {
+				return null;
+			}
+
+			@Override
+			public long getChildId(int groupPosition, int childPosition) {
+				return groupPosition * 1000 + childPosition;
+			}
+
+			@Override
+			public int getChildrenCount(int groupPosition) {
+				return 0;
+			}
+
+			@Override
+			public boolean isChildSelectable(int groupPosition,
+					int childPosition) {
+				return false;
+			}
+
+			private class ChildViewHolder {
+				private View row;
+				private int groupPosition;
+				private int childPosition;
+
+				private ChildViewHolder(View theRow, int gPosition,
+						int cPosition) {
+					row = theRow;
+					groupPosition = gPosition;
+					childPosition = cPosition;
+				}
+			}
+
+			private class ChildHolderTask extends
+					AsyncTask<Object, Object, Object> {
+				private int groupPosition;
+				private int childPosition;
+				private ChildViewHolder holder;
+
+				public ChildHolderTask(int gPosition, int cPosition,
+						ChildViewHolder theHolder) {
+					groupPosition = gPosition;
+					childPosition = cPosition;
+					holder = theHolder;
+				}
+
+				@Override
+				protected Object doInBackground(Object... params) {
+					return null;
+				}
+
+				@Override
+				protected void onPostExecute(Object result) {
+					if (holder.groupPosition == groupPosition
+							&& holder.childPosition == childPosition
+							&& result != null) {
+					}
+				}
+			}
+
+			@Override
+			public View getChildView(int groupPosition, int childPosition,
+					boolean isLastChild, View convertView, ViewGroup parent) {
+				ChildViewHolder holder;
+				if (convertView == null) {
+					convertView = mInflater.inflate(R.layout.activity_data,
+							null);
+					holder = new ChildViewHolder(convertView, groupPosition,
+							childPosition);
+					convertView.setTag(holder);
+				} else {
+					holder = (ChildViewHolder) convertView.getTag();
+					holder.groupPosition = groupPosition;
+					holder.childPosition = childPosition;
+				}
+
+				// Async update
+				new ChildHolderTask(groupPosition, childPosition, holder)
+						.executeOnExecutor(mExecutor, (Object) null);
+
+				return convertView;
+			}
+
+			@Override
+			public boolean hasStableIds() {
+				return true;
+			}
+		}
+	}
 }

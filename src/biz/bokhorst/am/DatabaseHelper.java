@@ -61,12 +61,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 	public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
 	}
 
-	// Register activity
-	public boolean registerActivity(long time, long activity, int confidence) {
+	public boolean registerActivity(long time, int activity, int confidence) {
 		long id = -1;
 		ContentValues cv = new ContentValues();
 
-		SQLiteDatabase db = this.getWritableDatabase();
+		SQLiteDatabase db = getWritableDatabase();
 		db.beginTransaction();
 		try {
 			Cursor cursor = db.query("activity", new String[] { "ID",
@@ -101,9 +100,63 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return (id == -1);
 	}
 
+	public int getActivityCount() {
+		int count = 0;
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM activity", null);
+			try {
+				if (cursor.moveToFirst())
+					count = cursor.getInt(0);
+			} finally {
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return count;
+	}
+
+	public Activity getActivity(int id) {
+		Activity result = null;
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.query("activity", new String[] { "start",
+					"stop", "activity", "confidence" }, "ID=?",
+					new String[] { Integer.toString(id) }, null, null, null);
+			try {
+				if (cursor.moveToFirst()) {
+					result = new Activity();
+					result.start = cursor.getLong(0);
+					result.stop = cursor.getLong(1);
+					result.activity = cursor.getInt(2);
+					result.confidence = cursor.getInt(3);
+				}
+			} finally {
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return result;
+	}
+
+	public class Activity {
+		public long start;
+		public long stop;
+		public int activity;
+		public int confidence;
+	}
+
 	public boolean registerDetail(long time, long type, Parcel data) {
 		boolean result = false;
-		SQLiteDatabase db = this.getWritableDatabase();
+		SQLiteDatabase db = getWritableDatabase();
 		db.beginTransaction();
 		try {
 			long id = -1;

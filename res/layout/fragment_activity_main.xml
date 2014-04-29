@@ -8,4 +8,12 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="biz.bokhorst.am.ActivityMain$PlaceholderFragment" >
 
+    <ExpandableListView
+        android:id="@+id/elvActivity"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:choiceMode="none"
+        android:paddingRight="12dip"
+        android:scrollbarStyle="insideInset" />
+
 </RelativeLayout>
