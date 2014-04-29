@@ -178,7 +178,6 @@ public class BackgroundService extends IntentService implements
 
 	@Override
 	public void onAccuracyChanged(Sensor sensor, int accuracy) {
-		Log.w(TAG, "Accuracy changed, accuracy=" + accuracy);
 	}
 
 	@Override
@@ -202,10 +201,29 @@ public class BackgroundService extends IntentService implements
 				.extractResult(intent);
 		DetectedActivity mostProbableActivity = result
 				.getMostProbableActivity();
-		new DatabaseHelper(this).registerActivity(result.getTime(),
-				mostProbableActivity.getType(),
+		boolean newActivity = new DatabaseHelper(this).registerActivity(
+				result.getTime(), mostProbableActivity.getType(),
 				mostProbableActivity.getConfidence());
 
+		// Request location update
+		if (newActivity) {
+			// Build pending intent
+			Intent locationIntent = new Intent(this, BackgroundService.class);
+			locationIntent.setAction(BackgroundService.ACTION_LOCATION);
+
+			PendingIntent locationPendingIntent = PendingIntent.getService(
+					this, 0, locationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+			// Request single location update
+			LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+			Criteria criteria = new Criteria();
+			criteria.setAccuracy(Criteria.ACCURACY_FINE);
+			locationManager
+					.requestSingleUpdate(criteria, locationPendingIntent);
+			Log.w(TAG, "Requested single location update");
+		}
+
+		// Log activities
 		SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat("HH:mm:ss",
 				Locale.getDefault());
 		for (DetectedActivity activity : result.getProbableActivities())
