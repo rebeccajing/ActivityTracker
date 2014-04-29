@@ -46,12 +46,6 @@ public class BackgroundService extends IntentService implements
 	}
 
 	@Override
-	public int onStartCommand(Intent intent, int flags, int startId) {
-		// TODO Auto-generated method stub
-		return super.onStartCommand(intent, flags, startId);
-	}
-
-	@Override
 	protected void onHandleIntent(Intent intent) {
 		Log.w(TAG, "Handling intent, action=" + intent.getAction());
 
@@ -74,6 +68,8 @@ public class BackgroundService extends IntentService implements
 		else if (ACTION_STEPS.equals(intent.getAction()))
 			handleStepsChanged(intent);
 	}
+
+	// Activity recognition setup
 
 	private void ensureActivityRecognition() {
 		// Check for Play services
@@ -117,6 +113,8 @@ public class BackgroundService extends IntentService implements
 		Log.w(TAG, "Disconnected from Play services");
 	}
 
+	// Location updates setup
+
 	private void ensureLocationUpdates() {
 		if (locationPendingIntent == null) {
 			// Build pending intent
@@ -138,6 +136,8 @@ public class BackgroundService extends IntentService implements
 			Log.w(TAG, "Requested location updates");
 		}
 	}
+
+	// Step counter setup
 
 	@TargetApi(Build.VERSION_CODES.KITKAT)
 	private void ensureStepCounting() {
@@ -170,6 +170,8 @@ public class BackgroundService extends IntentService implements
 		intentSteps.putExtra(ACTION_STEPS, steps);
 		startService(intentSteps);
 	}
+
+	// Logic
 
 	private void handleStart(Intent intent) {
 	}
