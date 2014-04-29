@@ -280,7 +280,7 @@ public class BackgroundService extends IntentService implements
 	public static String getNameFromType(Context context, int activityType) {
 		switch (activityType) {
 		case -1:
-			return "Boot";
+			return "Boot"; // TODO: localization
 		case DetectedActivity.IN_VEHICLE:
 			return context.getString(R.string.activity_in_vehicle);
 		case DetectedActivity.ON_BICYCLE:

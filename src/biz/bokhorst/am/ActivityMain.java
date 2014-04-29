@@ -20,7 +20,9 @@ package biz.bokhorst.am;
  */
 
 import java.text.SimpleDateFormat;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -102,6 +104,8 @@ public class ActivityMain extends Activity {
 		}
 
 		private class ActivityAdapter extends BaseExpandableListAdapter {
+			private int count = 0;
+			private Map<Integer, Integer> mapCount = new HashMap<Integer, Integer>();
 			private DatabaseHelper mDatabaseHelper = null;
 			private LayoutInflater mInflater = (LayoutInflater) getActivity()
 					.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -117,7 +121,9 @@ public class ActivityMain extends Activity {
 
 			@Override
 			public int getGroupCount() {
-				return mDatabaseHelper.getActivityCount();
+				if (count == 0)
+					count = mDatabaseHelper.getActivityCount();
+				return count;
 			}
 
 			@Override
@@ -198,12 +204,10 @@ public class ActivityMain extends Activity {
 					holder.position = groupPosition;
 				}
 
-				// Get entry
-				int id = (Integer) getGroup(groupPosition);
-
-				// TODO: set indicator
+				// TODO: reset holder
 
 				// Async update
+				int id = (Integer) getGroup(groupPosition);
 				new GroupHolderTask(groupPosition, holder, id)
 						.executeOnExecutor(mExecutor, (Object) null);
 
@@ -212,17 +216,20 @@ public class ActivityMain extends Activity {
 
 			@Override
 			public Object getChild(int groupPosition, int childPosition) {
-				return null;
+				return childPosition + 1;
 			}
 
 			@Override
 			public long getChildId(int groupPosition, int childPosition) {
-				return groupPosition * 1000 + childPosition;
+				return groupPosition * 1000000 + childPosition;
 			}
 
 			@Override
 			public int getChildrenCount(int groupPosition) {
-				return 0;
+				int id = (Integer) getGroup(groupPosition);
+				if (!mapCount.containsKey(id))
+					mapCount.put(id, mDatabaseHelper.getDetailCount(id));
+				return mapCount.get(id);
 			}
 
 			@Override
@@ -235,12 +242,18 @@ public class ActivityMain extends Activity {
 				private View row;
 				private int groupPosition;
 				private int childPosition;
+				public TextView tvTime;
+				public TextView tvType;
+				public TextView tvData;
 
 				private ChildViewHolder(View theRow, int gPosition,
 						int cPosition) {
 					row = theRow;
 					groupPosition = gPosition;
 					childPosition = cPosition;
+					tvTime = (TextView) row.findViewById(R.id.tvTime);
+					tvType = (TextView) row.findViewById(R.id.tvType);
+					tvData = (TextView) row.findViewById(R.id.tvData);
 				}
 			}
 
@@ -249,6 +262,7 @@ public class ActivityMain extends Activity {
 				private int groupPosition;
 				private int childPosition;
 				private ChildViewHolder holder;
+				private DatabaseHelper.Detail detail;
 
 				public ChildHolderTask(int gPosition, int cPosition,
 						ChildViewHolder theHolder) {
@@ -259,7 +273,11 @@ public class ActivityMain extends Activity {
 
 				@Override
 				protected Object doInBackground(Object... params) {
-					return null;
+					int id = (Integer) getGroup(groupPosition);
+					int childId = (Integer) getChild(groupPosition,
+							childPosition);
+					detail = mDatabaseHelper.getDetail(id, childId);
+					return detail;
 				}
 
 				@Override
@@ -267,6 +285,21 @@ public class ActivityMain extends Activity {
 					if (holder.groupPosition == groupPosition
 							&& holder.childPosition == childPosition
 							&& result != null) {
+						SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat(
+								"HH:mm:ss", Locale.getDefault());
+
+						// Set data
+						holder.tvTime.setText(TIME_FORMATTER
+								.format(detail.time));
+						holder.tvType.setText(DatabaseHelper
+								.getNameForType(detail.type));
+						if (detail.type == DatabaseHelper.TYPE_STEPS) {
+							detail.data.setDataPosition(0);
+							detail.data.readInt(); // Version
+							holder.tvData.setText(Integer.toString(detail.data
+									.readInt()));
+						} else
+							holder.tvData.setText("");
 					}
 				}
 			}
@@ -286,6 +319,8 @@ public class ActivityMain extends Activity {
 					holder.groupPosition = groupPosition;
 					holder.childPosition = childPosition;
 				}
+
+				// TODO: reset holder
 
 				// Async update
 				new ChildHolderTask(groupPosition, childPosition, holder)

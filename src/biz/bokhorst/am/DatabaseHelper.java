@@ -43,8 +43,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 			+ ", activity INTEGER NOT NULL" + ", time INTEGER NOT NULL"
 			+ ", type INTEGER NOT NULL" + ", data BLOB" + ");";
 
-	public static final long TYPE_LOCATION = 1;
-	public static final long TYPE_STEPS = 2;
+	public static final int TYPE_LOCATION = 1;
+	public static final int TYPE_STEPS = 2;
 
 	public DatabaseHelper(Context context) {
 		super(context, DBNAME, null, DBVERSION);
@@ -100,12 +100,66 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return (id == -1);
 	}
 
+	public boolean registerDetail(long time, int type, Parcel data) {
+		boolean result = false;
+		SQLiteDatabase db = getWritableDatabase();
+		db.beginTransaction();
+		try {
+			long id = -1;
+			Cursor cursor = db.query("activity", new String[] { "ID", }, null,
+					new String[] {}, null, null, "start DESC LIMIT 1");
+			try {
+				if (cursor.moveToFirst())
+					id = cursor.getLong(0);
+			} finally {
+				cursor.close();
+			}
+
+			if (id >= 0) {
+				ContentValues cv = new ContentValues();
+				cv.put("activity", id);
+				cv.put("time", time);
+				cv.put("type", type);
+				cv.put("data", data.marshall());
+				db.insert("detail", null, cv);
+				result = true;
+			} else
+				Log.w("AM", "No activity for detail");
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return result;
+	}
+
 	public int getActivityCount() {
 		int count = 0;
 		SQLiteDatabase db = getReadableDatabase();
 		db.beginTransaction();
 		try {
 			Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM activity", null);
+			try {
+				if (cursor.moveToFirst())
+					count = cursor.getInt(0);
+			} finally {
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return count;
+	}
+
+	public int getDetailCount(int id) {
+		int count = 0;
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.rawQuery(
+					"SELECT COUNT(*) FROM detail WHERE activity=" + id, null);
 			try {
 				if (cursor.moveToFirst())
 					count = cursor.getInt(0);
@@ -147,38 +201,29 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return result;
 	}
 
-	public class Activity {
-		public long start;
-		public long stop;
-		public int activity;
-		public int confidence;
-	}
-
-	public boolean registerDetail(long time, long type, Parcel data) {
-		boolean result = false;
-		SQLiteDatabase db = getWritableDatabase();
+	public Detail getDetail(int id, int index) {
+		Detail result = null;
+		SQLiteDatabase db = getReadableDatabase();
 		db.beginTransaction();
 		try {
-			long id = -1;
-			Cursor cursor = db.query("activity", new String[] { "ID", }, null,
-					new String[] {}, null, null, "start DESC LIMIT 1");
+			Cursor cursor = db.query("detail", new String[] { "time", "type",
+					"data" }, "activity=?",
+					new String[] { Integer.toString(id) }, null, null, "time");
 			try {
 				if (cursor.moveToFirst())
-					id = cursor.getLong(0);
+					while (--index > 0)
+						cursor.moveToNext();
+				if (!cursor.isAfterLast()) {
+					result = new Detail();
+					result.time = cursor.getLong(0);
+					result.type = cursor.getInt(1);
+					result.data = Parcel.obtain();
+					byte[] data = cursor.getBlob(2);
+					result.data.unmarshall(data, 0, data.length);
+				}
 			} finally {
 				cursor.close();
 			}
-
-			if (id >= 0) {
-				ContentValues cv = new ContentValues();
-				cv.put("activity", id);
-				cv.put("time", time);
-				cv.put("type", type);
-				cv.put("data", data.marshall());
-				db.insert("detail", null, cv);
-				result = true;
-			} else
-				Log.w("AM", "No activity for detail");
 
 			db.setTransactionSuccessful();
 		} finally {
@@ -186,4 +231,28 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		}
 		return result;
 	}
+
+	public static String getNameForType(int type) {
+		// TODO: localization
+		if (type == TYPE_LOCATION)
+			return "Location";
+		else if (type == TYPE_STEPS)
+			return "Steps";
+		else
+			return "Unknown";
+	}
+
+	public class Activity {
+		public long start;
+		public long stop;
+		public int activity;
+		public int confidence;
+	}
+
+	public class Detail {
+		public long time;
+		public int type;
+		public Parcel data;
+	}
+
 }
