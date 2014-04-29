@@ -24,6 +24,7 @@ import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.Cursor;
+import android.os.Parcel;
 import android.util.Log;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
@@ -40,7 +41,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 	private static final String DBCREATE_DETAIL = "CREATE TABLE detail ("
 			+ "ID INTEGER PRIMARY KEY AUTOINCREMENT"
 			+ ", activity INTEGER NOT NULL" + ", time INTEGER NOT NULL"
-			+ ", type INTEGER NOT NULL" + ", data TEXT" + ");";
+			+ ", type INTEGER NOT NULL" + ", data BLOB" + ");";
 
 	public static final long TYPE_LOCATION = 1;
 	public static final long TYPE_STEPS = 2;
@@ -100,7 +101,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return (id == -1);
 	}
 
-	public void registerDetail(long time, long type, String data) {
+	public boolean registerDetail(long time, long type, Parcel data) {
+		boolean result = false;
 		SQLiteDatabase db = this.getWritableDatabase();
 		db.beginTransaction();
 		try {
@@ -119,8 +121,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 				cv.put("activity", id);
 				cv.put("time", time);
 				cv.put("type", type);
-				cv.put("data", data);
+				cv.put("data", data.marshall());
 				db.insert("detail", null, cv);
+				result = true;
 			} else
 				Log.w("AM", "No activity for detail");
 
@@ -128,5 +131,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		} finally {
 			db.endTransaction();
 		}
+		return result;
 	}
 }

@@ -47,6 +47,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Parcel;
 import android.util.Log;
 
 public class BackgroundService extends IntentService implements
@@ -57,7 +58,7 @@ public class BackgroundService extends IntentService implements
 	private static PendingIntent locationPendingIntent = null;
 	private static boolean stepCounterRegistered = false;
 
-	public static final String ACTION_START = "Start";
+	public static final String ACTION_INIT = "Initialize";
 	public static final String ACTION_LOCATION = "Location";
 	public static final String ACTION_STEPS = "Steps";
 
@@ -69,19 +70,15 @@ public class BackgroundService extends IntentService implements
 	protected void onHandleIntent(Intent intent) {
 		Log.w(TAG, "Handling intent, action=" + intent.getAction());
 
-		// Start activity recognition
+		// Start services
 		ensureActivityRecognition();
-
-		// Start location updates
 		ensureLocationUpdates();
-
-		// Start step counter
 		ensureStepCounting();
 
-		// Check for activity recognition result
+		// Handle intent
 		if (ActivityRecognitionResult.hasResult(intent))
 			handleActivityRecognition(intent);
-		else if (ACTION_START.equals(intent.getAction()))
+		else if (ACTION_INIT.equals(intent.getAction()))
 			handleStart(intent);
 		else if (ACTION_LOCATION.equals(intent.getAction()))
 			handleLocationChanged(intent);
@@ -236,8 +233,18 @@ public class BackgroundService extends IntentService implements
 		Location location = (Location) intent.getExtras().get(
 				LocationManager.KEY_LOCATION_CHANGED);
 		Log.w(TAG, "Location=" + location);
+
+		Parcel parcel = Parcel.obtain();
+		parcel.writeInt(1); // version
+		parcel.writeDouble(location.getLatitude());
+		parcel.writeDouble(location.getLongitude());
+		parcel.writeDouble(location.getAltitude());
+		parcel.writeDouble(location.getSpeed());
+		parcel.writeDouble(location.getBearing());
+		parcel.writeDouble(location.getAccuracy());
 		new DatabaseHelper(this).registerDetail(new Date().getTime(),
-				DatabaseHelper.TYPE_LOCATION, location.toString());
+				DatabaseHelper.TYPE_LOCATION, parcel);
+		parcel.recycle();
 	}
 
 	private void handleStepsChanged(Intent intent) {
@@ -252,12 +259,19 @@ public class BackgroundService extends IntentService implements
 		int minDelta = 10; // TODO: setting
 		if (delta >= minDelta) {
 			Log.w(TAG, "Updating steps");
-			SharedPreferences.Editor editor = prefs.edit();
-			editor.putInt("Steps", steps);
-			editor.commit();
 
-			new DatabaseHelper(this).registerDetail(new Date().getTime(),
-					DatabaseHelper.TYPE_STEPS, Integer.toString(delta));
+			Parcel parcel = Parcel.obtain();
+			parcel.writeInt(1); // version
+			parcel.writeInt(steps);
+			boolean stored = new DatabaseHelper(this).registerDetail(
+					new Date().getTime(), DatabaseHelper.TYPE_STEPS, parcel);
+			parcel.recycle();
+
+			if (stored) {
+				SharedPreferences.Editor editor = prefs.edit();
+				editor.putInt("Steps", steps);
+				editor.commit();
+			}
 		}
 	}
 

@@ -19,6 +19,8 @@ package biz.bokhorst.am;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+import java.util.Date;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -26,22 +28,31 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 public class BootReceiver extends BroadcastReceiver {
+	private static final String TAG = "AM";
 
 	@Override
 	public void onReceive(final Context context, final Intent intent) {
-		Log.w("AM", "Receiver, action=" + intent.getAction());
+		Log.w(TAG, "Receiver, action=" + intent.getAction());
+
+		// Initialize service
 		Intent initService = new Intent(context, BackgroundService.class);
-		initService.setAction(BackgroundService.ACTION_START);
+		initService.setAction(BackgroundService.ACTION_INIT);
 		context.startService(initService);
 
-		// Reset step counter
+		// Check for boot completed
 		if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-			Log.w("AM", "Resetting step count");
+			// Register boot completed
+			new DatabaseHelper(context).registerActivity(new Date().getTime(),
+					-1, 100);
+			Log.w(TAG, "Registered boot completed");
+
+			// Reset step counter
 			SharedPreferences prefs = context.getSharedPreferences("activity",
 					Context.MODE_MULTI_PROCESS);
 			SharedPreferences.Editor editor = prefs.edit();
 			editor.putInt("Steps", 0);
 			editor.commit();
+			Log.w(TAG, "Step count reset");
 		}
 	}
 }

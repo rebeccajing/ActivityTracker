@@ -42,10 +42,6 @@ public class ActivityMain extends Activity {
 			getFragmentManager().beginTransaction()
 					.add(R.id.container, new PlaceholderFragment()).commit();
 		}
-
-		Intent initService = new Intent(this, BackgroundService.class);
-		initService.setAction(BackgroundService.ACTION_START);
-		startService(initService);
 	}
 
 	@Override
