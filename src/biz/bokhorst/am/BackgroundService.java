@@ -118,7 +118,7 @@ public class BackgroundService extends IntentService implements
 
 	@Override
 	public void onConnected(Bundle hint) {
-		Log.w(TAG, "Connected to Play services");
+		Log.w(TAG, "Requesting activity updates");
 		int interval = 60 * 1000; // TODO: setting
 		PendingIntent activityCallbackIntent = PendingIntent.getService(this,
 				0, new Intent(this, BackgroundService.class),
@@ -199,8 +199,11 @@ public class BackgroundService extends IntentService implements
 		// Register activity
 		ActivityRecognitionResult result = ActivityRecognitionResult
 				.extractResult(intent);
-		new DatabaseHelper(this).registerActivity(result.getTime(), result
-				.getMostProbableActivity().getType());
+		DetectedActivity mostProbableActivity = result
+				.getMostProbableActivity();
+		new DatabaseHelper(this).registerActivity(result.getTime(),
+				mostProbableActivity.getType(),
+				mostProbableActivity.getConfidence());
 
 		SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat("HH:mm:ss",
 				Locale.getDefault());
@@ -214,11 +217,15 @@ public class BackgroundService extends IntentService implements
 		Location location = (Location) intent.getExtras().get(
 				LocationManager.KEY_LOCATION_CHANGED);
 		Log.w(TAG, "Location=" + location);
+		new DatabaseHelper(this).registerDetail(new Date().getTime(),
+				DatabaseHelper.TYPE_LOCATION, location.toString());
 	}
 
 	private void handleStepsChanged(Intent intent) {
 		int steps = intent.getIntExtra(ACTION_STEPS, -1);
 		Log.w(TAG, "Steps=" + steps);
+		new DatabaseHelper(this).registerDetail(new Date().getTime(),
+				DatabaseHelper.TYPE_LOCATION, Integer.toString(steps));
 	}
 
 	// Helper methods

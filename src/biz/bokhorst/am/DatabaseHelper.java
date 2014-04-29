@@ -24,19 +24,26 @@ import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.Cursor;
+import android.util.Log;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
 
-	private static final String DBNAME = "Activity";
+	private static final String DBNAME = "activity";
 	private static final int DBVERSION = 1;
 
-	private static final String DBCREATE = "CREATE TABLE activity ("
+	private static final String DBCREATE_ACTIVITY = "CREATE TABLE activity ("
 			+ "ID INTEGER PRIMARY KEY AUTOINCREMENT"
 			+ ", start INTEGER NOT NULL" + ", stop INTEGER"
-			+ ", activity INTEGER NOT NULL" + ");" + "CREATE TABLE detail ("
+			+ ", activity INTEGER NOT NULL" + ", confidence INTEGER NOT NULL"
+			+ ");";
+
+	private static final String DBCREATE_DETAIL = "CREATE TABLE detail ("
 			+ "ID INTEGER PRIMARY KEY AUTOINCREMENT"
-			+ ", time INTEGER NOT NULL" + ", type INTEGER NOT NULL"
-			+ ", data TEXT" + ");";
+			+ ", activity INTEGER NOT NULL" + ", time INTEGER NOT NULL"
+			+ ", type INTEGER NOT NULL" + ", data TEXT" + ");";
+
+	public static final long TYPE_LOCATION = 1;
+	public static final long TYPE_STEPS = 2;
 
 	public DatabaseHelper(Context context) {
 		super(context, DBNAME, null, DBVERSION);
@@ -44,7 +51,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 	@Override
 	public void onCreate(SQLiteDatabase db) {
-		db.execSQL(DBCREATE);
+		db.execSQL(DBCREATE_ACTIVITY);
+		db.execSQL(DBCREATE_DETAIL);
+		Log.w("AM", "Database created");
 	}
 
 	@Override
@@ -52,7 +61,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 	}
 
 	// Register activity
-	public void registerActivity(long time, long activity) {
+	public boolean registerActivity(long time, long activity, int confidence) {
 		long id = -1;
 		ContentValues cv = new ContentValues();
 
@@ -60,16 +69,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		db.beginTransaction();
 		try {
 			Cursor cursor = db.query("activity", new String[] { "ID",
-					"activity" }, null, new String[] {}, null, null,
-					"start DESC LIMIT 1");
+					"activity", "confidence" }, null, new String[] {}, null,
+					null, "start DESC LIMIT 1");
 			try {
 				if (cursor.moveToFirst() && cursor.getLong(1) == activity) {
 					id = cursor.getLong(0);
 					cv.put("stop", time);
+					cv.put("confidence", Math.max(confidence, cursor.getInt(2)));
 				} else {
 					cv.put("start", time);
 					cv.put("stop", time);
 					cv.put("activity", activity);
+					cv.put("confidence", confidence);
 				}
 			} finally {
 				cursor.close();
@@ -80,6 +91,38 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 			else
 				db.update("activity", cv, "ID=?",
 						new String[] { Long.toString(id) });
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+
+		return (id == -1);
+	}
+
+	public void registerDetail(long time, long type, String data) {
+		SQLiteDatabase db = this.getWritableDatabase();
+		db.beginTransaction();
+		try {
+			long id = -1;
+			Cursor cursor = db.query("activity", new String[] { "ID", }, null,
+					new String[] {}, null, null, "start DESC LIMIT 1");
+			try {
+				if (cursor.moveToFirst())
+					id = cursor.getLong(0);
+			} finally {
+				cursor.close();
+			}
+
+			if (id >= 0) {
+				ContentValues cv = new ContentValues();
+				cv.put("activity", id);
+				cv.put("time", time);
+				cv.put("type", type);
+				cv.put("data", data);
+				db.insert("detail", null, cv);
+			} else
+				Log.w("AM", "No activity for detail");
 
 			db.setTransactionSuccessful();
 		} finally {
