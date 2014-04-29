@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="biz.bokhorst.am"
+    package="biz.bokhorst.activitytracker"
     android:versionCode="1"
     android:versionName="1.0" >
 
@@ -27,7 +27,7 @@
             android:value="@integer/google_play_services_version" />
 
         <activity
-            android:name="biz.bokhorst.am.ActivityMain"
+            android:name="biz.bokhorst.activitytracker.ActivityMain"
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:label="@string/app_name" >
             <intent-filter>
@@ -38,10 +38,10 @@
         </activity>
 
         <service
-            android:name=".BackgroundService"
+            android:name="biz.bokhorst.activitytracker.BackgroundService"
             android:enabled="true" />
 
-        <receiver android:name=".BootReceiver" >
+        <receiver android:name="biz.bokhorst.activitytracker.BootReceiver" >
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

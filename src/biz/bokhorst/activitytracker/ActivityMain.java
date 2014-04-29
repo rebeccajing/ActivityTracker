@@ -1,4 +1,4 @@
-package biz.bokhorst.am;
+package biz.bokhorst.activitytracker;
 
 /*
  Copyright 2014 Marcel Bokhorst
@@ -27,9 +27,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import biz.bokhorst.activitytracker.R;
+
 import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
+import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -42,6 +45,8 @@ import android.widget.ExpandableListView;
 import android.widget.TextView;
 
 public class ActivityMain extends Activity {
+	private static String TAG = "ATRACKER";
+
 	private static ExecutorService mExecutor = Executors.newFixedThreadPool(
 			Runtime.getRuntime().availableProcessors(),
 			new PriorityThreadFactory());
@@ -64,6 +69,11 @@ public class ActivityMain extends Activity {
 			getFragmentManager().beginTransaction()
 					.add(R.id.container, new PlaceholderFragment()).commit();
 		}
+
+		// Initialize service
+		Intent initService = new Intent(this, BackgroundService.class);
+		initService.setAction(BackgroundService.ACTION_INIT);
+		startService(initService);
 	}
 
 	@Override
@@ -137,7 +147,6 @@ public class ActivityMain extends Activity {
 				public TextView tvStart;
 				public TextView tvStop;
 				public TextView tvActivity;
-				public TextView tvConfidence;
 
 				public GroupViewHolder(View theRow, int thePosition) {
 					row = theRow;
@@ -145,8 +154,6 @@ public class ActivityMain extends Activity {
 					tvStart = (TextView) row.findViewById(R.id.tvStart);
 					tvStop = (TextView) row.findViewById(R.id.tvStop);
 					tvActivity = (TextView) row.findViewById(R.id.tvActivity);
-					tvConfidence = (TextView) row
-							.findViewById(R.id.tvConfidence);
 				}
 			}
 
@@ -155,7 +162,7 @@ public class ActivityMain extends Activity {
 				private int position;
 				private GroupViewHolder holder;
 				private int id;
-				private DatabaseHelper.Activity activity;
+				private DatabaseHelper.ActivityRecord activity;
 
 				public GroupHolderTask(int thePosition,
 						GroupViewHolder theHolder, int theId) {
@@ -166,7 +173,7 @@ public class ActivityMain extends Activity {
 
 				@Override
 				protected Object doInBackground(Object... params) {
-					activity = mDatabaseHelper.getActivity(id);
+					activity = mDatabaseHelper.getActivityRecord(id);
 					return activity;
 				}
 
@@ -181,11 +188,8 @@ public class ActivityMain extends Activity {
 								.format(activity.start));
 						holder.tvStop.setText(TIME_FORMATTER
 								.format(activity.stop));
-						holder.tvActivity.setText(BackgroundService
-								.getNameFromType(getActivity(),
-										activity.activity));
-						holder.tvConfidence.setText(String.format("%d %%",
-								activity.confidence));
+						holder.tvActivity.setText(activity
+								.getName(getActivity()));
 					}
 				}
 			}
@@ -262,7 +266,7 @@ public class ActivityMain extends Activity {
 				private int groupPosition;
 				private int childPosition;
 				private ChildViewHolder holder;
-				private DatabaseHelper.Detail detail;
+				private DatabaseHelper.ActivityData detail;
 
 				public ChildHolderTask(int gPosition, int cPosition,
 						ChildViewHolder theHolder) {
@@ -276,7 +280,7 @@ public class ActivityMain extends Activity {
 					int id = (Integer) getGroup(groupPosition);
 					int childId = (Integer) getChild(groupPosition,
 							childPosition);
-					detail = mDatabaseHelper.getDetail(id, childId);
+					detail = mDatabaseHelper.getActivityData(id, childId);
 					return detail;
 				}
 
@@ -291,15 +295,8 @@ public class ActivityMain extends Activity {
 						// Set data
 						holder.tvTime.setText(TIME_FORMATTER
 								.format(detail.time));
-						holder.tvType.setText(DatabaseHelper
-								.getNameForType(detail.type));
-						if (detail.type == DatabaseHelper.TYPE_STEPS) {
-							detail.data.setDataPosition(0);
-							detail.data.readInt(); // Version
-							holder.tvData.setText(Integer.toString(detail.data
-									.readInt()));
-						} else
-							holder.tvData.setText("");
+						holder.tvType.setText(detail.getName(getActivity()));
+						holder.tvData.setText(detail.getData(getActivity()));
 					}
 				}
 			}

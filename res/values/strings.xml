@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">Activity monitor</string>
+    <string name="app_name">Activity tracker</string>
     <string name="action_settings">Settings</string>
+    <string name="activity_boot">Boot</string>
     <string name="activity_in_vehicle">In vehicle</string>
     <string name="activity_on_bicycle">On bicycle</string>
     <string name="activity_on_foot">On foot</string>

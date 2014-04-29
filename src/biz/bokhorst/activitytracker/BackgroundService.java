@@ -1,4 +1,4 @@
-package biz.bokhorst.am;
+package biz.bokhorst.activitytracker;
 
 /*
  Copyright 2014 Marcel Bokhorst
@@ -19,9 +19,8 @@ package biz.bokhorst.am;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityRecord;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
@@ -47,12 +46,11 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Parcel;
 import android.util.Log;
 
 public class BackgroundService extends IntentService implements
 		ConnectionCallbacks, OnConnectionFailedListener, SensorEventListener {
-	private static String TAG = "AM";
+	private static String TAG = "ATRACKER";
 
 	private static ActivityRecognitionClient activityRecognitionClient = null;
 	private static PendingIntent locationPendingIntent = null;
@@ -193,14 +191,18 @@ public class BackgroundService extends IntentService implements
 	}
 
 	private void handleActivityRecognition(Intent intent) {
+		DatabaseHelper dh = new DatabaseHelper(this);
+
 		// Register activity
 		ActivityRecognitionResult result = ActivityRecognitionResult
 				.extractResult(intent);
 		DetectedActivity mostProbableActivity = result
 				.getMostProbableActivity();
-		boolean newActivity = new DatabaseHelper(this).registerActivity(
-				result.getTime(), mostProbableActivity.getType(),
-				mostProbableActivity.getConfidence());
+		boolean newActivity = dh.registerActivityRecord(new ActivityRecord(
+				result.getTime(), mostProbableActivity.getType()));
+		for (DetectedActivity activity : result.getProbableActivities())
+			dh.registerActivityData(new ActivityData(result.getTime(), activity
+					.getType(), activity.getConfidence()));
 
 		// Request location update
 		if (newActivity) {
@@ -219,14 +221,6 @@ public class BackgroundService extends IntentService implements
 					.requestSingleUpdate(criteria, locationPendingIntent);
 			Log.w(TAG, "Requested single location update");
 		}
-
-		// Log activities
-		SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat("HH:mm:ss",
-				Locale.getDefault());
-		for (DetectedActivity activity : result.getProbableActivities())
-			Log.w(TAG, TIME_FORMATTER.format(new Date(result.getTime()))
-					+ " Activity " + getNameFromType(this, activity.getType())
-					+ " " + activity.getConfidence() + " %");
 	}
 
 	private void handleLocationChanged(Intent intent) {
@@ -234,17 +228,8 @@ public class BackgroundService extends IntentService implements
 				LocationManager.KEY_LOCATION_CHANGED);
 		Log.w(TAG, "Location=" + location);
 
-		Parcel parcel = Parcel.obtain();
-		parcel.writeInt(1); // version
-		parcel.writeDouble(location.getLatitude());
-		parcel.writeDouble(location.getLongitude());
-		parcel.writeDouble(location.getAltitude());
-		parcel.writeDouble(location.getSpeed());
-		parcel.writeDouble(location.getBearing());
-		parcel.writeDouble(location.getAccuracy());
-		new DatabaseHelper(this).registerDetail(new Date().getTime(),
-				DatabaseHelper.TYPE_LOCATION, parcel);
-		parcel.recycle();
+		new DatabaseHelper(this).registerActivityData(new ActivityData(
+				ActivityData.TYPE_TRACKPOINT, location));
 	}
 
 	private void handleStepsChanged(Intent intent) {
@@ -259,41 +244,13 @@ public class BackgroundService extends IntentService implements
 		int minDelta = 10; // TODO: setting
 		if (delta >= minDelta) {
 			Log.w(TAG, "Updating steps");
-
-			Parcel parcel = Parcel.obtain();
-			parcel.writeInt(1); // version
-			parcel.writeInt(delta);
-			boolean stored = new DatabaseHelper(this).registerDetail(
-					new Date().getTime(), DatabaseHelper.TYPE_STEPS, parcel);
-			parcel.recycle();
-
+			boolean stored = new DatabaseHelper(this)
+					.registerActivityData(new ActivityData(delta));
 			if (stored) {
 				SharedPreferences.Editor editor = prefs.edit();
 				editor.putInt("Steps", steps);
 				editor.commit();
 			}
 		}
-	}
-
-	// Helper methods
-
-	public static String getNameFromType(Context context, int activityType) {
-		switch (activityType) {
-		case -1:
-			return "Boot"; // TODO: localization
-		case DetectedActivity.IN_VEHICLE:
-			return context.getString(R.string.activity_in_vehicle);
-		case DetectedActivity.ON_BICYCLE:
-			return context.getString(R.string.activity_on_bicycle);
-		case DetectedActivity.ON_FOOT:
-			return context.getString(R.string.activity_on_foot);
-		case DetectedActivity.STILL:
-			return context.getString(R.string.activity_still);
-		case DetectedActivity.UNKNOWN:
-			return context.getString(R.string.activity_unknown);
-		case DetectedActivity.TILTING:
-			return context.getString(R.string.activity_tilting);
-		}
-		return context.getString(R.string.activity_unknown);
 	}
 }

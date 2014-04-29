@@ -1,4 +1,4 @@
-package biz.bokhorst.am;
+package biz.bokhorst.activitytracker;
 
 /*
  Copyright 2014 Marcel Bokhorst
@@ -19,8 +19,7 @@ package biz.bokhorst.am;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-import java.util.Date;
-
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityRecord;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -28,7 +27,7 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 public class BootReceiver extends BroadcastReceiver {
-	private static final String TAG = "AM";
+	private static String TAG = "ATRACKER";
 
 	@Override
 	public void onReceive(final Context context, final Intent intent) {
@@ -42,8 +41,8 @@ public class BootReceiver extends BroadcastReceiver {
 		// Check for boot completed
 		if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
 			// Register boot completed
-			new DatabaseHelper(context).registerActivity(new Date().getTime(),
-					-1, 100);
+			new DatabaseHelper(context)
+					.registerActivityRecord(new ActivityRecord(-1));
 			Log.w(TAG, "Registered boot completed");
 
 			// Reset step counter

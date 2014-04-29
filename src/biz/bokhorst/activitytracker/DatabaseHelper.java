@@ -1,0 +1,397 @@
+package biz.bokhorst.activitytracker;
+
+/*
+ Copyright 2014 Marcel Bokhorst
+ All Rights Reserved
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+import java.util.Date;
+
+import com.google.android.gms.location.DetectedActivity;
+
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.database.Cursor;
+import android.location.Location;
+import android.os.Parcel;
+import android.util.Log;
+
+public class DatabaseHelper extends SQLiteOpenHelper {
+	private static String TAG = "ATRACKER";
+
+	private static final String DBNAME = "activity";
+	private static final int DBVERSION = 1;
+
+	private static final String DBCREATE_ACTIVITY = "CREATE TABLE activity ("
+			+ "ID INTEGER PRIMARY KEY AUTOINCREMENT"
+			+ ", start INTEGER NOT NULL" + ", stop INTEGER"
+			+ ", activity INTEGER NOT NULL" + ");";
+
+	private static final String DBCREATE_DATA = "CREATE TABLE data ("
+			+ "ID INTEGER PRIMARY KEY AUTOINCREMENT"
+			+ ", activity INTEGER NOT NULL" + ", time INTEGER NOT NULL"
+			+ ", type INTEGER NOT NULL" + ", data BLOB" + ");";
+
+	public DatabaseHelper(Context context) {
+		super(context, DBNAME, null, DBVERSION);
+	}
+
+	@Override
+	public void onCreate(SQLiteDatabase db) {
+		db.execSQL(DBCREATE_ACTIVITY);
+		db.execSQL(DBCREATE_DATA);
+		Log.w(TAG, "Database created");
+	}
+
+	@Override
+	public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+	}
+
+	public boolean registerActivityRecord(ActivityRecord record) {
+		long id = -1;
+		ContentValues cv = new ContentValues();
+
+		SQLiteDatabase db = getWritableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.query("activity", new String[] { "ID",
+					"activity" }, null, new String[] {}, null, null,
+					"start DESC LIMIT 1");
+			try {
+				if (cursor.moveToFirst()
+						&& cursor.getLong(1) == record.activity) {
+					id = cursor.getLong(0);
+					cv.put("stop", record.start);
+				} else {
+					cv.put("start", record.start);
+					cv.put("stop", record.start);
+					cv.put("activity", record.activity);
+				}
+			} finally {
+				cursor.close();
+			}
+
+			if (id == -1)
+				db.insert("activity", null, cv);
+			else
+				db.update("activity", cv, "ID=?",
+						new String[] { Long.toString(id) });
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+
+		return (id == -1);
+	}
+
+	public boolean registerActivityData(ActivityData data) {
+		boolean result = false;
+		SQLiteDatabase db = getWritableDatabase();
+		db.beginTransaction();
+		try {
+			long id = -1;
+			Cursor cursor = db.query("activity", new String[] { "ID", }, null,
+					new String[] {}, null, null, "start DESC LIMIT 1");
+			try {
+				if (cursor.moveToFirst())
+					id = cursor.getLong(0);
+			} finally {
+				cursor.close();
+			}
+
+			if (id >= 0) {
+				ContentValues cv = new ContentValues();
+				cv.put("activity", id);
+				cv.put("time", data.time);
+				cv.put("type", data.type);
+				cv.put("data", data.getBlob());
+				db.insert("detail", null, cv);
+				result = true;
+			} else
+				Log.w(TAG, "No activity for data");
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return result;
+	}
+
+	public int getActivityCount() {
+		int count = 0;
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM activity", null);
+			try {
+				if (cursor.moveToFirst())
+					count = cursor.getInt(0);
+			} finally {
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return count;
+	}
+
+	public int getDetailCount(int id) {
+		int count = 0;
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.rawQuery(
+					"SELECT COUNT(*) FROM detail WHERE activity=" + id, null);
+			try {
+				if (cursor.moveToFirst())
+					count = cursor.getInt(0);
+			} finally {
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return count;
+	}
+
+	public ActivityRecord getActivityRecord(int id) {
+		ActivityRecord result = null;
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.query("activity", new String[] { "start",
+					"stop", "activity" }, "ID=?",
+					new String[] { Integer.toString(id) }, null, null, null);
+			try {
+				if (cursor.moveToFirst()) {
+					result = new ActivityRecord();
+					result.start = cursor.getLong(0);
+					result.stop = cursor.getLong(1);
+					result.activity = cursor.getInt(2);
+				}
+			} finally {
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return result;
+	}
+
+	public ActivityData getActivityData(int id, int index) {
+		ActivityData result = null;
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.query("data", new String[] { "time", "type",
+					"data" }, "activity=?",
+					new String[] { Integer.toString(id) }, null, null, "time");
+			try {
+				if (cursor.moveToFirst())
+					while (--index > 0)
+						cursor.moveToNext();
+				if (!cursor.isAfterLast()) {
+					result = ActivityData.FromBlob(cursor.getLong(0),
+							cursor.getInt(1), cursor.getBlob(2));
+				}
+			} finally {
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+		return result;
+	}
+
+	public static class ActivityRecord {
+		public long start;
+		public long stop;
+		public int activity;
+
+		public ActivityRecord() {
+		}
+
+		public ActivityRecord(int act) {
+			start = new Date().getTime();
+			activity = act;
+		}
+
+		public ActivityRecord(long time, int act) {
+			start = time;
+			activity = act;
+		}
+
+		public String getName(Context context) {
+			switch (activity) {
+			case -1:
+				return context.getString(R.string.activity_boot);
+			case DetectedActivity.IN_VEHICLE:
+				return context.getString(R.string.activity_in_vehicle);
+			case DetectedActivity.ON_BICYCLE:
+				return context.getString(R.string.activity_on_bicycle);
+			case DetectedActivity.ON_FOOT:
+				return context.getString(R.string.activity_on_foot);
+			case DetectedActivity.STILL:
+				return context.getString(R.string.activity_still);
+			case DetectedActivity.UNKNOWN:
+				return context.getString(R.string.activity_unknown);
+			case DetectedActivity.TILTING:
+				return context.getString(R.string.activity_tilting);
+			}
+			return context.getString(R.string.activity_unknown);
+		}
+	}
+
+	public static class ActivityData {
+		public static final int TYPE_ACTIVITY = 2;
+		public static final int TYPE_TRACKPOINT = 2;
+		public static final int TYPE_WAYPOINT = 3;
+		public static final int TYPE_STEPS = 4;
+
+		public long time;
+		public int type;
+		public int activity;
+		public int confidence;
+		public Location location;
+		public int steps;
+
+		public ActivityData() {
+		}
+
+		public ActivityData(long atime, int atype) {
+			time = atime;
+			type = atype;
+		}
+
+		public ActivityData(long atime, int aactivity, int aconfidence) {
+			time = atime;
+			type = TYPE_ACTIVITY;
+			activity = aactivity;
+			confidence = aconfidence;
+		}
+
+		public ActivityData(int atype, Location alocation) {
+			time = alocation.getTime();
+			type = atype;
+			location = alocation;
+		}
+
+		public ActivityData(int asteps) {
+			time = new Date().getTime();
+			steps = asteps;
+		}
+
+		public byte[] getBlob() {
+			Parcel parcel = Parcel.obtain();
+			parcel.writeInt(1); // version
+			if (type == TYPE_TRACKPOINT || type == TYPE_WAYPOINT) {
+				parcel.writeDouble(location.getLatitude());
+				parcel.writeDouble(location.getLongitude());
+				parcel.writeDouble(location.getAltitude());
+				parcel.writeFloat(location.getSpeed());
+				parcel.writeFloat(location.getBearing());
+				parcel.writeFloat(location.getAccuracy());
+			} else if (type == TYPE_STEPS) {
+				parcel.writeInt(steps);
+			} else if (type == TYPE_ACTIVITY) {
+				parcel.writeInt(activity);
+				parcel.writeInt(confidence);
+			}
+			byte[] result = parcel.marshall();
+			parcel.recycle();
+			return result;
+		}
+
+		public static ActivityData FromBlob(long atime, int atype, byte[] result) {
+			ActivityData data = new ActivityData(atime, atype);
+
+			Parcel parcel = Parcel.obtain();
+			parcel.unmarshall(result, 0, result.length);
+			parcel.readInt(); // version
+			if (atype == TYPE_TRACKPOINT || atype == TYPE_WAYPOINT) {
+				data.location = new Location("fused");
+				data.location.setLatitude(parcel.readDouble());
+				data.location.setLongitude(parcel.readDouble());
+				data.location.setAltitude(parcel.readDouble());
+				data.location.setSpeed(parcel.readFloat());
+				data.location.setBearing(parcel.readFloat());
+				data.location.setAccuracy(parcel.readFloat());
+			} else if (atype == TYPE_STEPS) {
+				data.steps = parcel.readInt();
+			} else if (atype == TYPE_ACTIVITY) {
+				data.activity = parcel.readInt();
+				data.confidence = parcel.readInt();
+			}
+			parcel.recycle();
+
+			return data;
+		}
+
+		public String getName(Context context) {
+			if (type == TYPE_TRACKPOINT)
+				return "Trackpoint";
+			else if (type == TYPE_WAYPOINT)
+				return "Waypoint";
+			else if (type == TYPE_STEPS)
+				return "Steps";
+			else if (type == TYPE_ACTIVITY) {
+				return "Activity";
+			} else
+				return Integer.toString(type);
+		}
+
+		public String getData(Context context) {
+			if (type == TYPE_TRACKPOINT)
+				return location.toString();
+			else if (type == TYPE_WAYPOINT)
+				return location.toString();
+			else if (type == TYPE_STEPS)
+				return Integer.toString(steps);
+			else if (type == TYPE_ACTIVITY) {
+				String act = "";
+				switch (activity) {
+				case DetectedActivity.IN_VEHICLE:
+					act = context.getString(R.string.activity_in_vehicle);
+				case DetectedActivity.ON_BICYCLE:
+					act = context.getString(R.string.activity_on_bicycle);
+				case DetectedActivity.ON_FOOT:
+					act = context.getString(R.string.activity_on_foot);
+				case DetectedActivity.STILL:
+					act = context.getString(R.string.activity_still);
+				case DetectedActivity.UNKNOWN:
+					act = context.getString(R.string.activity_unknown);
+				case DetectedActivity.TILTING:
+					act = context.getString(R.string.activity_tilting);
+				}
+				return String.format("%s %d %%", act, confidence);
+			} else
+				return "";
+
+		}
+	}
+}
