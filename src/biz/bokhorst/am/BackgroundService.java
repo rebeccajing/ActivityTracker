@@ -262,7 +262,7 @@ public class BackgroundService extends IntentService implements
 
 			Parcel parcel = Parcel.obtain();
 			parcel.writeInt(1); // version
-			parcel.writeInt(steps);
+			parcel.writeInt(delta);
 			boolean stored = new DatabaseHelper(this).registerDetail(
 					new Date().getTime(), DatabaseHelper.TYPE_STEPS, parcel);
 			parcel.recycle();
