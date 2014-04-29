@@ -14,7 +14,11 @@ import com.google.android.gms.location.DetectedActivity;
 
 import android.app.IntentService;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
+import android.location.Criteria;
+import android.location.Location;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -22,9 +26,11 @@ public class BackgroundService extends IntentService implements
 		ConnectionCallbacks, OnConnectionFailedListener {
 
 	private static String TAG = "AM";
+	private static PendingIntent locationPendingIntent = null;
 	private static ActivityRecognitionClient activityRecognitionClient = null;
 
 	public static final String ACTION_START = "Start";
+	public static final String ACTION_LOCATION = "Location";
 
 	public BackgroundService() {
 		super(TAG);
@@ -37,24 +43,38 @@ public class BackgroundService extends IntentService implements
 		// Start activity recognition (again)
 		ensureActivityRecognition();
 
+		// Start location updates (again)
+		ensureLocationUpdates();
+
 		// Check for activity recognition result
-		if (ActivityRecognitionResult.hasResult(intent)) {
-			ActivityRecognitionResult result = ActivityRecognitionResult
-					.extractResult(intent);
-			DetectedActivity mostProbableActivity = result
-					.getMostProbableActivity();
-			int confidence = mostProbableActivity.getConfidence();
-			int activityType = mostProbableActivity.getType();
+		if (ActivityRecognitionResult.hasResult(intent))
+			handleActivityRecognition(intent);
+		else if (ACTION_LOCATION.equals(intent.getAction()))
+			handleLocationChanged(intent);
+	}
 
-			String activityName = getNameFromType(activityType);
-			SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat("HH:mm:ss",
-					Locale.getDefault());
+	private void handleActivityRecognition(Intent intent) {
+		ActivityRecognitionResult result = ActivityRecognitionResult
+				.extractResult(intent);
+		DetectedActivity mostProbableActivity = result
+				.getMostProbableActivity();
+		int confidence = mostProbableActivity.getConfidence();
+		int activityType = mostProbableActivity.getType();
 
-			for (DetectedActivity activity : result.getProbableActivities())
-				Log.w(TAG, TIME_FORMATTER.format(new Date(result.getTime()))
-						+ " Activity " + getNameFromType(activity.getType())
-						+ " " + activity.getConfidence() + " %");
-		}
+		String activityName = getNameFromType(activityType);
+		SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat("HH:mm:ss",
+				Locale.getDefault());
+
+		for (DetectedActivity activity : result.getProbableActivities())
+			Log.w(TAG, TIME_FORMATTER.format(new Date(result.getTime()))
+					+ " Activity " + getNameFromType(activity.getType()) + " "
+					+ activity.getConfidence() + " %");
+	}
+
+	private void handleLocationChanged(Intent intent) {
+		Location location = (Location) intent.getExtras().get(
+				LocationManager.KEY_LOCATION_CHANGED);
+		Log.w(TAG, "Location=" + location);
 	}
 
 	private void ensureActivityRecognition() {
@@ -68,10 +88,34 @@ public class BackgroundService extends IntentService implements
 
 			// Connect to activity recognition
 			if (!activityRecognitionClient.isConnected()
-					&& !activityRecognitionClient.isConnecting())
+					&& !activityRecognitionClient.isConnecting()) {
+				Log.w(TAG, "Connecting to activity recognition client");
 				activityRecognitionClient.connect();
+			}
 		} else
 			Log.w(TAG, "Play services not available, result=" + result);
+	}
+
+	private void ensureLocationUpdates() {
+		if (locationPendingIntent == null) {
+			// Build pending intent
+			Intent locationIntent = new Intent(this, BackgroundService.class);
+			locationIntent.setAction(BackgroundService.ACTION_LOCATION);
+
+			locationPendingIntent = PendingIntent.getService(this, 0,
+					locationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+			// Request location updates
+			Log.w(TAG, "Requesting location updates");
+			LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+			locationManager.removeUpdates(locationPendingIntent);
+			int minTime = 60 * 1000; // TODO: setting
+			int minDistance = 50; // TODO: setting
+			Criteria criteria = new Criteria();
+			criteria.setAccuracy(Criteria.ACCURACY_FINE);
+			locationManager.requestLocationUpdates(minTime, minDistance,
+					criteria, locationPendingIntent);
+		}
 	}
 
 	@Override
