@@ -217,25 +217,13 @@ public class BackgroundService extends IntentService implements
 			dh.registerActivityData(new ActivityData(result.getTime(), activity
 					.getType(), activity.getConfidence()));
 
-		// Request location update
+		// Get last know location
 		if (newActivity) {
-			// TODO: setting
-			int locationAccuracy = Criteria.ACCURACY_FINE;
-
-			// Build pending intent
-			Intent locationIntent = new Intent(this, BackgroundService.class);
-			locationIntent.setAction(BackgroundService.ACTION_LOCATION);
-
-			PendingIntent locationPendingIntent = PendingIntent.getService(
-					this, 0, locationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-
-			// Request single location update
 			LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-			Criteria criteria = new Criteria();
-			criteria.setAccuracy(locationAccuracy);
-			locationManager
-					.requestSingleUpdate(criteria, locationPendingIntent);
-			Log.w(TAG, "Requested single location update");
+			Location location = locationManager
+					.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER);
+			dh.registerActivityData(new ActivityData(
+					ActivityData.TYPE_TRACKPOINT, location));
 		}
 	}
 
@@ -269,6 +257,10 @@ public class BackgroundService extends IntentService implements
 			Log.w(TAG, "Updating steps, delta=" + delta);
 			new DatabaseHelper(this).registerActivityData(new ActivityData(
 					delta));
+
+			SharedPreferences.Editor editor = prefs.edit();
+			editor.putInt("Steps", steps);
+			editor.commit();
 		}
 	}
 }
