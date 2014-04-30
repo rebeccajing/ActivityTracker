@@ -177,12 +177,14 @@ public class BackgroundService extends IntentService implements
 
 	@Override
 	public void onSensorChanged(SensorEvent event) {
-		int steps = (int) event.values[0];
-		Log.w(TAG, "Sensor changed, steps=" + steps);
-		Intent intentSteps = new Intent(this, BackgroundService.class);
-		intentSteps.setAction(ACTION_STEPS);
-		intentSteps.putExtra(ACTION_STEPS, steps);
-		startService(intentSteps);
+		if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
+			int steps = (int) event.values[0];
+			Log.w(TAG, "Sensor changed, steps=" + steps);
+			Intent intentSteps = new Intent(this, BackgroundService.class);
+			intentSteps.setAction(ACTION_STEPS);
+			intentSteps.putExtra(ACTION_STEPS, steps);
+			startService(intentSteps);
+		}
 	}
 
 	// Logic
