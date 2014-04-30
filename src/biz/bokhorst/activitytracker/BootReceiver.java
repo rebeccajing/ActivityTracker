@@ -46,6 +46,7 @@ public class BootReceiver extends BroadcastReceiver {
 			Log.w(TAG, "Registered boot completed");
 
 			// Reset step counter
+			// TODO: shared preference
 			SharedPreferences prefs = context.getSharedPreferences("activity",
 					Context.MODE_MULTI_PROCESS);
 			SharedPreferences.Editor editor = prefs.edit();

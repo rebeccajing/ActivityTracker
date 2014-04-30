@@ -198,8 +198,11 @@ public class BackgroundService extends IntentService implements
 				.extractResult(intent);
 		DetectedActivity mostProbableActivity = result
 				.getMostProbableActivity();
-		boolean newActivity = dh.registerActivityRecord(new ActivityRecord(
-				result.getTime(), mostProbableActivity.getType()));
+
+		boolean newActivity = false;
+		if (mostProbableActivity.getType() != DetectedActivity.TILTING)
+			newActivity = dh.registerActivityRecord(new ActivityRecord(result
+					.getTime(), mostProbableActivity.getType()));
 		for (DetectedActivity activity : result.getProbableActivities())
 			dh.registerActivityData(new ActivityData(result.getTime(), activity
 					.getType(), activity.getConfidence()));
@@ -214,9 +217,10 @@ public class BackgroundService extends IntentService implements
 					this, 0, locationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
 			// Request single location update
+			int locationAccuracy = Criteria.ACCURACY_FINE; // TODO: setting
 			LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 			Criteria criteria = new Criteria();
-			criteria.setAccuracy(Criteria.ACCURACY_FINE);
+			criteria.setAccuracy(locationAccuracy);
 			locationManager
 					.requestSingleUpdate(criteria, locationPendingIntent);
 			Log.w(TAG, "Requested single location update");
@@ -233,6 +237,7 @@ public class BackgroundService extends IntentService implements
 	}
 
 	private void handleStepsChanged(Intent intent) {
+		// TODO: shared preference
 		SharedPreferences prefs = getSharedPreferences("activity",
 				Context.MODE_MULTI_PROCESS);
 

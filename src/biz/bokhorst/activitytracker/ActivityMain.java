@@ -181,7 +181,7 @@ public class ActivityMain extends Activity {
 				protected void onPostExecute(Object result) {
 					if (holder.position == position && result != null) {
 						SimpleDateFormat TIME_FORMATTER = new SimpleDateFormat(
-								"HH:mm:ss", Locale.getDefault());
+								"dd/MM HH:mm:ss", Locale.getDefault());
 
 						// Set data
 						holder.tvStart.setText(TIME_FORMATTER

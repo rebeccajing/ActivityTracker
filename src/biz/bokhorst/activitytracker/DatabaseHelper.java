@@ -20,17 +20,22 @@ package biz.bokhorst.activitytracker;
  */
 
 import java.util.Date;
+import java.util.Locale;
 
 import com.google.android.gms.location.DetectedActivity;
 
+import android.annotation.TargetApi;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.Cursor;
 import android.location.Location;
+import android.os.Build;
 import android.os.Parcel;
 import android.util.Log;
+
+// sqlite3 /data/data/biz.bokhorst.activitytracker/databases/activity
 
 public class DatabaseHelper extends SQLiteOpenHelper {
 	private static String TAG = "ATRACKER";
@@ -122,7 +127,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 				cv.put("time", data.time);
 				cv.put("type", data.type);
 				cv.put("data", data.getBlob());
-				db.insert("detail", null, cv);
+				db.insert("data", null, cv);
 				result = true;
 			} else
 				Log.w(TAG, "No activity for data");
@@ -160,7 +165,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		db.beginTransaction();
 		try {
 			Cursor cursor = db.rawQuery(
-					"SELECT COUNT(*) FROM detail WHERE activity=" + id, null);
+					"SELECT COUNT(*) FROM data WHERE activity=" + id, null);
 			try {
 				if (cursor.moveToFirst())
 					count = cursor.getInt(0);
@@ -249,26 +254,26 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		public String getName(Context context) {
 			switch (activity) {
 			case -1:
-				return context.getString(R.string.activity_boot);
+				return context.getString(R.string.title_boot);
 			case DetectedActivity.IN_VEHICLE:
-				return context.getString(R.string.activity_in_vehicle);
+				return context.getString(R.string.title_in_vehicle);
 			case DetectedActivity.ON_BICYCLE:
-				return context.getString(R.string.activity_on_bicycle);
+				return context.getString(R.string.title_on_bicycle);
 			case DetectedActivity.ON_FOOT:
-				return context.getString(R.string.activity_on_foot);
+				return context.getString(R.string.title_on_foot);
 			case DetectedActivity.STILL:
-				return context.getString(R.string.activity_still);
+				return context.getString(R.string.title_still);
 			case DetectedActivity.UNKNOWN:
-				return context.getString(R.string.activity_unknown);
+				return context.getString(R.string.title_unknown);
 			case DetectedActivity.TILTING:
-				return context.getString(R.string.activity_tilting);
+				return context.getString(R.string.title_tilting);
 			}
-			return context.getString(R.string.activity_unknown);
+			return String.format(Locale.getDefault(), "Activity %d", activity);
 		}
 	}
 
 	public static class ActivityData {
-		public static final int TYPE_ACTIVITY = 2;
+		public static final int TYPE_ACTIVITY = 1;
 		public static final int TYPE_TRACKPOINT = 2;
 		public static final int TYPE_WAYPOINT = 3;
 		public static final int TYPE_STEPS = 4;
@@ -327,25 +332,33 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 			return result;
 		}
 
+		@TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
 		public static ActivityData FromBlob(long atime, int atype, byte[] result) {
 			ActivityData data = new ActivityData(atime, atype);
 
 			Parcel parcel = Parcel.obtain();
 			parcel.unmarshall(result, 0, result.length);
-			parcel.readInt(); // version
-			if (atype == TYPE_TRACKPOINT || atype == TYPE_WAYPOINT) {
-				data.location = new Location("fused");
-				data.location.setLatitude(parcel.readDouble());
-				data.location.setLongitude(parcel.readDouble());
-				data.location.setAltitude(parcel.readDouble());
-				data.location.setSpeed(parcel.readFloat());
-				data.location.setBearing(parcel.readFloat());
-				data.location.setAccuracy(parcel.readFloat());
-			} else if (atype == TYPE_STEPS) {
-				data.steps = parcel.readInt();
-			} else if (atype == TYPE_ACTIVITY) {
-				data.activity = parcel.readInt();
-				data.confidence = parcel.readInt();
+			parcel.setDataPosition(0);
+			int version = parcel.readInt();
+			if (version == 1) {
+				if (atype == TYPE_TRACKPOINT || atype == TYPE_WAYPOINT) {
+					data.location = new Location("fused");
+					data.location.setTime(atime);
+					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
+						data.location.setElapsedRealtimeNanos(0);
+					data.location.setLatitude(parcel.readDouble());
+					data.location.setLongitude(parcel.readDouble());
+					data.location.setAltitude(parcel.readDouble());
+					data.location.setSpeed(parcel.readFloat());
+					data.location.setBearing(parcel.readFloat());
+					data.location.setAccuracy(parcel.readFloat());
+					Log.w(TAG, "Deserialized location=" + data.location);
+				} else if (atype == TYPE_STEPS) {
+					data.steps = parcel.readInt();
+				} else if (atype == TYPE_ACTIVITY) {
+					data.activity = parcel.readInt();
+					data.confidence = parcel.readInt();
+				}
 			}
 			parcel.recycle();
 
@@ -354,15 +367,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 		public String getName(Context context) {
 			if (type == TYPE_TRACKPOINT)
-				return "Trackpoint";
+				return context.getString(R.string.title_trackpoint);
 			else if (type == TYPE_WAYPOINT)
-				return "Waypoint";
+				return context.getString(R.string.title_waypoint);
 			else if (type == TYPE_STEPS)
-				return "Steps";
+				return context.getString(R.string.title_steps);
 			else if (type == TYPE_ACTIVITY) {
-				return "Activity";
+				return context.getString(R.string.title_activity);
 			} else
-				return Integer.toString(type);
+				return String.format(Locale.getDefault(), "Type %d", type);
 		}
 
 		public String getData(Context context) {
@@ -373,25 +386,34 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 			else if (type == TYPE_STEPS)
 				return Integer.toString(steps);
 			else if (type == TYPE_ACTIVITY) {
-				String act = "";
+				String act;
 				switch (activity) {
 				case DetectedActivity.IN_VEHICLE:
-					act = context.getString(R.string.activity_in_vehicle);
+					act = context.getString(R.string.title_in_vehicle);
+					break;
 				case DetectedActivity.ON_BICYCLE:
-					act = context.getString(R.string.activity_on_bicycle);
+					act = context.getString(R.string.title_on_bicycle);
+					break;
 				case DetectedActivity.ON_FOOT:
-					act = context.getString(R.string.activity_on_foot);
+					act = context.getString(R.string.title_on_foot);
+					break;
 				case DetectedActivity.STILL:
-					act = context.getString(R.string.activity_still);
+					act = context.getString(R.string.title_still);
+					break;
 				case DetectedActivity.UNKNOWN:
-					act = context.getString(R.string.activity_unknown);
+					act = context.getString(R.string.title_unknown);
+					break;
 				case DetectedActivity.TILTING:
-					act = context.getString(R.string.activity_tilting);
+					act = context.getString(R.string.title_tilting);
+					break;
+				default:
+					act = String.format(Locale.getDefault(), "Activity %d",
+							activity);
 				}
-				return String.format("%s %d %%", act, confidence);
+				return String.format(Locale.getDefault(), "%s %d %%", act,
+						confidence);
 			} else
-				return "";
-
+				return String.format(Locale.getDefault(), "Type %d", type);
 		}
 	}
 }
