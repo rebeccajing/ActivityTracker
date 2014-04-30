@@ -114,13 +114,15 @@ public class BackgroundService extends IntentService implements
 
 	@Override
 	public void onConnected(Bundle hint) {
-		Log.w(TAG, "Requesting activity updates");
-		int interval = 60 * 1000; // TODO: setting
+		// TODO: settings
+		int interval = 60 * 1000;
+
 		PendingIntent activityCallbackIntent = PendingIntent.getService(this,
 				0, new Intent(this, BackgroundService.class),
 				PendingIntent.FLAG_UPDATE_CURRENT);
 		activityRecognitionClient.requestActivityUpdates(interval,
 				activityCallbackIntent);
+		Log.w(TAG, "Requested activity updates");
 	}
 
 	@Override
@@ -132,6 +134,11 @@ public class BackgroundService extends IntentService implements
 
 	private void ensureLocationUpdates() {
 		if (locationPendingIntent == null) {
+			// TODO: settings
+			int locationAccuracy = Criteria.ACCURACY_FINE;
+			int minTime = 60 * 1000;
+			int minDistance = 50;
+
 			// Build pending intent
 			Intent locationIntent = new Intent(this, BackgroundService.class);
 			locationIntent.setAction(BackgroundService.ACTION_LOCATION);
@@ -142,10 +149,8 @@ public class BackgroundService extends IntentService implements
 			// Request location updates
 			LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 			locationManager.removeUpdates(locationPendingIntent);
-			int minTime = 60 * 1000; // TODO: setting
-			int minDistance = 50; // TODO: setting
 			Criteria criteria = new Criteria();
-			criteria.setAccuracy(Criteria.ACCURACY_FINE);
+			criteria.setAccuracy(locationAccuracy);
 			locationManager.requestLocationUpdates(minTime, minDistance,
 					criteria, locationPendingIntent);
 			Log.w(TAG, "Requested location updates");
@@ -159,11 +164,14 @@ public class BackgroundService extends IntentService implements
 		if (getPackageManager().hasSystemFeature(
 				PackageManager.FEATURE_SENSOR_STEP_COUNTER)) {
 			if (!stepCounterRegistered) {
+				// TODO: settings
+				int stepDelay = SensorManager.SENSOR_DELAY_NORMAL;
+
+				// Request step counting
 				SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 				Sensor countSensor = sensorManager
 						.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
-				sensorManager.registerListener(this, countSensor,
-						SensorManager.SENSOR_DELAY_NORMAL);
+				sensorManager.registerListener(this, countSensor, stepDelay);
 				stepCounterRegistered = true;
 				Log.w(TAG, "Step counter listener registered");
 			}
@@ -211,6 +219,9 @@ public class BackgroundService extends IntentService implements
 
 		// Request location update
 		if (newActivity) {
+			// TODO: setting
+			int locationAccuracy = Criteria.ACCURACY_FINE;
+
 			// Build pending intent
 			Intent locationIntent = new Intent(this, BackgroundService.class);
 			locationIntent.setAction(BackgroundService.ACTION_LOCATION);
@@ -219,7 +230,6 @@ public class BackgroundService extends IntentService implements
 					this, 0, locationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
 			// Request single location update
-			int locationAccuracy = Criteria.ACCURACY_FINE; // TODO: setting
 			LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 			Criteria criteria = new Criteria();
 			criteria.setAccuracy(locationAccuracy);
@@ -230,34 +240,35 @@ public class BackgroundService extends IntentService implements
 	}
 
 	private void handleLocationChanged(Intent intent) {
+		// Get location
 		Location location = (Location) intent.getExtras().get(
 				LocationManager.KEY_LOCATION_CHANGED);
-		Log.w(TAG, "Location=" + location);
 
+		// Register location
+		Log.w(TAG, "Updating location=" + location);
 		new DatabaseHelper(this).registerActivityData(new ActivityData(
 				ActivityData.TYPE_TRACKPOINT, location));
 	}
 
 	private void handleStepsChanged(Intent intent) {
+		// TODO: setting
+		int minStepDelta = 10;
+
 		// TODO: shared preference
 		SharedPreferences prefs = getSharedPreferences("activity",
 				Context.MODE_MULTI_PROCESS);
 
+		// Get steps
 		int steps = intent.getIntExtra(ACTION_STEPS, -1);
 		int last = prefs.getInt("Steps", 0);
 		int delta = steps - last;
 		Log.w(TAG, "Steps=" + steps + " Delta=" + delta);
 
-		int minDelta = 10; // TODO: setting
-		if (delta >= minDelta) {
-			Log.w(TAG, "Updating steps");
-			boolean stored = new DatabaseHelper(this)
-					.registerActivityData(new ActivityData(delta));
-			if (stored) {
-				SharedPreferences.Editor editor = prefs.edit();
-				editor.putInt("Steps", steps);
-				editor.commit();
-			}
+		// Register steps
+		if (delta >= minStepDelta) {
+			Log.w(TAG, "Updating steps, delta=" + delta);
+			new DatabaseHelper(this).registerActivityData(new ActivityData(
+					delta));
 		}
 	}
 }

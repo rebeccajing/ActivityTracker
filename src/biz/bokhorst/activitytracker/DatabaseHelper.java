@@ -110,9 +110,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return (id == -1);
 	}
 
-	public boolean registerActivityData(ActivityData data) {
-		boolean result = false;
-
+	public void registerActivityData(ActivityData data) {
 		SQLiteDatabase db = getWritableDatabase();
 		try {
 			db.beginTransaction();
@@ -136,7 +134,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 					cv.put("type", data.type);
 					cv.put("data", data.getBlob());
 					db.insert("data", null, cv);
-					result = true;
 				} else
 					Log.w(TAG, "No activity for data");
 
@@ -147,8 +144,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		} finally {
 			db.close();
 		}
-
-		return result;
 	}
 
 	public int getActivityCount() {
