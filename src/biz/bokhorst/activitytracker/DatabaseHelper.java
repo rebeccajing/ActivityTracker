@@ -253,8 +253,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 		public String getName(Context context) {
 			switch (activity) {
-			case -1:
-				return context.getString(R.string.title_boot);
 			case DetectedActivity.IN_VEHICLE:
 				return context.getString(R.string.title_in_vehicle);
 			case DetectedActivity.ON_BICYCLE:
@@ -273,6 +271,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 	}
 
 	public static class ActivityData {
+		public static final int TYPE_BOOT = 0;
 		public static final int TYPE_ACTIVITY = 1;
 		public static final int TYPE_TRACKPOINT = 2;
 		public static final int TYPE_WAYPOINT = 3;
@@ -366,7 +365,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		}
 
 		public String getName(Context context) {
-			if (type == TYPE_TRACKPOINT)
+			if (type == TYPE_BOOT)
+				return context.getString(R.string.title_boot);
+			else if (type == TYPE_TRACKPOINT)
 				return context.getString(R.string.title_trackpoint);
 			else if (type == TYPE_WAYPOINT)
 				return context.getString(R.string.title_waypoint);

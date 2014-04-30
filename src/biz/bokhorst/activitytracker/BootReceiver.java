@@ -19,7 +19,10 @@ package biz.bokhorst.activitytracker;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-import biz.bokhorst.activitytracker.DatabaseHelper.ActivityRecord;
+import java.util.Date;
+
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -41,8 +44,8 @@ public class BootReceiver extends BroadcastReceiver {
 		// Check for boot completed
 		if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
 			// Register boot completed
-			new DatabaseHelper(context)
-					.registerActivityRecord(new ActivityRecord(-1));
+			new DatabaseHelper(context).registerActivityData(new ActivityData(
+					new Date().getTime(), ActivityData.TYPE_BOOT));
 			Log.w(TAG, "Registered boot completed");
 
 			// Reset step counter
