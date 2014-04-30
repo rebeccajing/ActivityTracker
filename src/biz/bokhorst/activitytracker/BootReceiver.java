@@ -21,13 +21,13 @@ package biz.bokhorst.activitytracker;
 
 import java.util.Date;
 
-import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
-
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.util.Log;
+
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
 
 public class BootReceiver extends BroadcastReceiver {
 	private static String TAG = "ATRACKER";

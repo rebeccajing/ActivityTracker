@@ -19,9 +19,6 @@ package biz.bokhorst.activitytracker;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
-import biz.bokhorst.activitytracker.DatabaseHelper.ActivityRecord;
-
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.GooglePlayServicesClient.ConnectionCallbacks;
@@ -47,6 +44,9 @@ import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityRecord;
 
 public class BackgroundService extends IntentService implements
 		ConnectionCallbacks, OnConnectionFailedListener, SensorEventListener {

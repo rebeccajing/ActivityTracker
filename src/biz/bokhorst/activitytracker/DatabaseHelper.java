@@ -73,34 +73,38 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		ContentValues cv = new ContentValues();
 
 		SQLiteDatabase db = getWritableDatabase();
-		db.beginTransaction();
 		try {
-			Cursor cursor = db.query("activity", new String[] { "ID",
-					"activity" }, null, new String[] {}, null, null,
-					"start DESC LIMIT 1");
+			db.beginTransaction();
 			try {
-				if (cursor.moveToFirst()
-						&& cursor.getLong(1) == record.activity) {
-					id = cursor.getLong(0);
-					cv.put("stop", record.start);
-				} else {
-					cv.put("start", record.start);
-					cv.put("stop", record.start);
-					cv.put("activity", record.activity);
+				Cursor cursor = db.query("activity", new String[] { "ID",
+						"activity" }, null, new String[] {}, null, null,
+						"start DESC LIMIT 1");
+				try {
+					if (cursor.moveToFirst()
+							&& cursor.getLong(1) == record.activity) {
+						id = cursor.getLong(0);
+						cv.put("stop", record.start);
+					} else {
+						cv.put("start", record.start);
+						cv.put("stop", record.start);
+						cv.put("activity", record.activity);
+					}
+				} finally {
+					cursor.close();
 				}
+
+				if (id == -1)
+					db.insert("activity", null, cv);
+				else
+					db.update("activity", cv, "ID=?",
+							new String[] { Long.toString(id) });
+
+				db.setTransactionSuccessful();
 			} finally {
-				cursor.close();
+				db.endTransaction();
 			}
-
-			if (id == -1)
-				db.insert("activity", null, cv);
-			else
-				db.update("activity", cv, "ID=?",
-						new String[] { Long.toString(id) });
-
-			db.setTransactionSuccessful();
 		} finally {
-			db.endTransaction();
+			db.close();
 		}
 
 		return (id == -1);
@@ -108,34 +112,42 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 	public boolean registerActivityData(ActivityData data) {
 		boolean result = false;
+
 		SQLiteDatabase db = getWritableDatabase();
-		db.beginTransaction();
 		try {
-			long id = -1;
-			Cursor cursor = db.query("activity", new String[] { "ID", }, null,
-					new String[] {}, null, null, "start DESC LIMIT 1");
+			db.beginTransaction();
 			try {
-				if (cursor.moveToFirst())
-					id = cursor.getLong(0);
+				long id = -1;
+				Cursor cursor = db
+						.query("activity", new String[] { "ID", }, null,
+								new String[] {}, null, null,
+								"start DESC LIMIT 1");
+				try {
+					if (cursor.moveToFirst())
+						id = cursor.getLong(0);
+				} finally {
+					cursor.close();
+				}
+
+				if (id >= 0) {
+					ContentValues cv = new ContentValues();
+					cv.put("activity", id);
+					cv.put("time", data.time);
+					cv.put("type", data.type);
+					cv.put("data", data.getBlob());
+					db.insert("data", null, cv);
+					result = true;
+				} else
+					Log.w(TAG, "No activity for data");
+
+				db.setTransactionSuccessful();
 			} finally {
-				cursor.close();
+				db.endTransaction();
 			}
-
-			if (id >= 0) {
-				ContentValues cv = new ContentValues();
-				cv.put("activity", id);
-				cv.put("time", data.time);
-				cv.put("type", data.type);
-				cv.put("data", data.getBlob());
-				db.insert("data", null, cv);
-				result = true;
-			} else
-				Log.w(TAG, "No activity for data");
-
-			db.setTransactionSuccessful();
 		} finally {
-			db.endTransaction();
+			db.close();
 		}
+
 		return result;
 	}
 
@@ -307,6 +319,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 		public ActivityData(int asteps) {
 			time = new Date().getTime();
+			type = TYPE_STEPS;
 			steps = asteps;
 		}
 
@@ -351,7 +364,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 					data.location.setSpeed(parcel.readFloat());
 					data.location.setBearing(parcel.readFloat());
 					data.location.setAccuracy(parcel.readFloat());
-					Log.w(TAG, "Deserialized location=" + data.location);
 				} else if (atype == TYPE_STEPS) {
 					data.steps = parcel.readInt();
 				} else if (atype == TYPE_ACTIVITY) {
@@ -380,7 +392,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		}
 
 		public String getData(Context context) {
-			if (type == TYPE_TRACKPOINT)
+			if (type == TYPE_BOOT)
+				return "";
+			else if (type == TYPE_TRACKPOINT)
 				return location.toString();
 			else if (type == TYPE_WAYPOINT)
 				return location.toString();

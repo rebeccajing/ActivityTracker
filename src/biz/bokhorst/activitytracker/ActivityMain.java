@@ -20,21 +20,19 @@ package biz.bokhorst.activitytracker;
  */
 
 import java.text.SimpleDateFormat;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import biz.bokhorst.activitytracker.R;
-
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -44,7 +42,10 @@ import android.widget.BaseExpandableListAdapter;
 import android.widget.ExpandableListView;
 import android.widget.TextView;
 
+import biz.bokhorst.activitytracker.R;
+
 public class ActivityMain extends Activity {
+	@SuppressWarnings("unused")
 	private static String TAG = "ATRACKER";
 
 	private static ExecutorService mExecutor = Executors.newFixedThreadPool(
@@ -115,10 +116,13 @@ public class ActivityMain extends Activity {
 
 		private class ActivityAdapter extends BaseExpandableListAdapter {
 			private int count = 0;
-			private Map<Integer, Integer> mapCount = new HashMap<Integer, Integer>();
+			@SuppressLint("UseSparseArrays")
+			private SparseArray<Integer> mapCount = new SparseArray<Integer>();
 			private DatabaseHelper mDatabaseHelper = null;
 			private LayoutInflater mInflater = (LayoutInflater) getActivity()
 					.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+			// TODO: receive update broadcasts
 
 			public ActivityAdapter(int resource) {
 				mDatabaseHelper = new DatabaseHelper(getActivity());
@@ -231,7 +235,7 @@ public class ActivityMain extends Activity {
 			@Override
 			public int getChildrenCount(int groupPosition) {
 				int id = (Integer) getGroup(groupPosition);
-				if (!mapCount.containsKey(id))
+				if (mapCount.get(id) == null)
 					mapCount.put(id, mDatabaseHelper.getDetailCount(id));
 				return mapCount.get(id);
 			}
