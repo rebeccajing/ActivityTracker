@@ -13,6 +13,6 @@
     <string name="title_trackpoint">Trackpoint</string>
     <string name="title_waypoint">Waypoint</string>
     <string name="title_steps">Steps</string>
-        <string name="title_activity">Activity</string>
-    
+    <string name="title_activity">Activity</string>
+
 </resources>
