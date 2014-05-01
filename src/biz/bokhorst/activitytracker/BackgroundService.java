@@ -28,6 +28,7 @@ import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.DetectedActivity;
 
 import android.annotation.TargetApi;
+import android.app.AlarmManager;
 import android.app.IntentService;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -43,20 +44,22 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.Log;
 
 import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
 import biz.bokhorst.activitytracker.DatabaseHelper.ActivityRecord;
 
-public class BackgroundService extends IntentService implements
-		ConnectionCallbacks, OnConnectionFailedListener, SensorEventListener {
+public class BackgroundService extends IntentService {
 	private static String TAG = "ATRACKER";
 
+	private static PendingIntent watchdogPendingIntent = null;
 	private static ActivityRecognitionClient activityRecognitionClient = null;
 	private static PendingIntent locationPendingIntent = null;
 	private static boolean stepCounterRegistered = false;
 
-	public static final String ACTION_INIT = "Initialize";
+	public static final String ACTION_INIT = "Init";
+	public static final String ACTION_WATCHDOG = "Watchdog";
 	public static final String ACTION_LOCATION = "Location";
 	public static final String ACTION_STEPS = "Steps";
 
@@ -66,22 +69,51 @@ public class BackgroundService extends IntentService implements
 
 	@Override
 	protected void onHandleIntent(Intent intent) {
-		Log.w(TAG, "Handling intent, action=" + intent.getAction());
-
-		// Start services
-		ensureActivityRecognition();
-		ensureLocationUpdates();
-		ensureStepCounting();
-
 		// Handle intent
-		if (ActivityRecognitionResult.hasResult(intent))
-			handleActivityRecognition(intent);
-		else if (ACTION_INIT.equals(intent.getAction()))
-			handleStart(intent);
-		else if (ACTION_LOCATION.equals(intent.getAction()))
-			handleLocationChanged(intent);
-		else if (ACTION_STEPS.equals(intent.getAction()))
-			handleStepsChanged(intent);
+		try {
+			if (ActivityRecognitionResult.hasResult(intent))
+				handleActivityRecognition(intent);
+			else if (ACTION_INIT.equals(intent.getAction()))
+				handleInit(intent);
+			else if (ACTION_WATCHDOG.equals(intent.getAction()))
+				handleWatchdog(intent);
+			else if (ACTION_LOCATION.equals(intent.getAction()))
+				handleLocationChanged(intent);
+			else if (ACTION_STEPS.equals(intent.getAction()))
+				handleStepsChanged(intent);
+			else
+				Log.w(TAG, "Unknown intent=" + intent);
+		} catch (Throwable ex) {
+			Log.e(TAG, ex.toString());
+		} finally {
+			// Start trackers
+			ensureWatchdog();
+			ensureActivityRecognition();
+			ensureLocationUpdates();
+			ensureStepCounting();
+		}
+	}
+
+	// Watchdog setup
+
+	private void ensureWatchdog() {
+		if (watchdogPendingIntent == null) {
+			// TODO: get settings
+			long interval = 60L * 1000L;
+
+			// Build pending intent
+			Intent watchdogIntent = new Intent(this, BackgroundService.class);
+			watchdogIntent.setAction(BackgroundService.ACTION_WATCHDOG);
+			watchdogPendingIntent = PendingIntent.getService(this, 0,
+					watchdogIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+			// Setup watchdog
+			AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+			long watchdogTime = SystemClock.elapsedRealtime() + interval;
+			alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+					watchdogTime, watchdogPendingIntent);
+			Log.w(TAG, "Watchdog started");
+		}
 	}
 
 	// Activity recognition setup
@@ -91,11 +123,13 @@ public class BackgroundService extends IntentService implements
 		int result = GooglePlayServicesUtil.isGooglePlayServicesAvailable(this);
 		if (result == ConnectionResult.SUCCESS) {
 			// Create activity recognition client
-			if (activityRecognitionClient == null)
+			if (activityRecognitionClient == null) {
+				PlayServicesListener listener = new PlayServicesListener();
 				activityRecognitionClient = new ActivityRecognitionClient(this,
-						this, this);
+						listener, listener);
+			}
 
-			// Connect to activity recognition
+			// Connect to Play services
 			if (!activityRecognitionClient.isConnected()
 					&& !activityRecognitionClient.isConnecting()) {
 				Log.w(TAG, "Connecting to activity recognition client");
@@ -105,29 +139,37 @@ public class BackgroundService extends IntentService implements
 			Log.w(TAG, "Play services not available, result=" + result);
 	}
 
-	@Override
-	public void onConnectionFailed(ConnectionResult result) {
-		Log.e(TAG,
-				"Connection to Play services failed, result="
-						+ result.getErrorCode());
-	}
+	private class PlayServicesListener implements ConnectionCallbacks,
+			OnConnectionFailedListener {
+		@Override
+		public void onConnectionFailed(ConnectionResult result) {
+			Log.e(TAG,
+					"Connection to Play services failed, result="
+							+ result.getErrorCode());
+		}
 
-	@Override
-	public void onConnected(Bundle hint) {
-		// TODO: settings
-		int interval = 60 * 1000;
+		@Override
+		public void onConnected(Bundle hint) {
+			// TODO: settings
+			int interval = 60 * 1000;
 
-		PendingIntent activityCallbackIntent = PendingIntent.getService(this,
-				0, new Intent(this, BackgroundService.class),
-				PendingIntent.FLAG_UPDATE_CURRENT);
-		activityRecognitionClient.requestActivityUpdates(interval,
-				activityCallbackIntent);
-		Log.w(TAG, "Requested activity updates");
-	}
+			// Build pending intent
+			Intent activityIntent = new Intent(BackgroundService.this,
+					BackgroundService.class);
+			PendingIntent activityCallbackIntent = PendingIntent.getService(
+					BackgroundService.this, 0, activityIntent,
+					PendingIntent.FLAG_UPDATE_CURRENT);
 
-	@Override
-	public void onDisconnected() {
-		Log.w(TAG, "Disconnected from Play services");
+			// Request activity updates
+			activityRecognitionClient.requestActivityUpdates(interval,
+					activityCallbackIntent);
+			Log.w(TAG, "Requested activity updates");
+		}
+
+		@Override
+		public void onDisconnected() {
+			Log.w(TAG, "Disconnected from Play services");
+		}
 	}
 
 	// Location updates setup
@@ -135,14 +177,13 @@ public class BackgroundService extends IntentService implements
 	private void ensureLocationUpdates() {
 		if (locationPendingIntent == null) {
 			// TODO: settings
-			int locationAccuracy = Criteria.ACCURACY_FINE;
+			int locationAccuracy = Criteria.POWER_LOW;
 			int minTime = 60 * 1000;
 			int minDistance = 50;
 
 			// Build pending intent
 			Intent locationIntent = new Intent(this, BackgroundService.class);
 			locationIntent.setAction(BackgroundService.ACTION_LOCATION);
-
 			locationPendingIntent = PendingIntent.getService(this, 0,
 					locationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
@@ -171,7 +212,8 @@ public class BackgroundService extends IntentService implements
 				SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 				Sensor countSensor = sensorManager
 						.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
-				sensorManager.registerListener(this, countSensor, stepDelay);
+				sensorManager.registerListener(new SensorListener(),
+						countSensor, stepDelay);
 				stepCounterRegistered = true;
 				Log.w(TAG, "Step counter listener registered");
 			}
@@ -179,25 +221,34 @@ public class BackgroundService extends IntentService implements
 			Log.w(TAG, "No hardware step counter");
 	}
 
-	@Override
-	public void onAccuracyChanged(Sensor sensor, int accuracy) {
-	}
+	private class SensorListener implements SensorEventListener {
+		@Override
+		public void onAccuracyChanged(Sensor sensor, int accuracy) {
+			// Ignored
+		}
 
-	@Override
-	public void onSensorChanged(SensorEvent event) {
-		if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
-			int steps = (int) event.values[0];
-			Log.w(TAG, "Sensor changed, steps=" + steps);
-			Intent intentSteps = new Intent(this, BackgroundService.class);
-			intentSteps.setAction(ACTION_STEPS);
-			intentSteps.putExtra(ACTION_STEPS, steps);
-			startService(intentSteps);
+		@Override
+		public void onSensorChanged(SensorEvent event) {
+			if (event.sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
+				int steps = (int) event.values[0];
+				Log.w(TAG, "Steps changed, steps=" + steps);
+				Intent intentSteps = new Intent(BackgroundService.this,
+						BackgroundService.class);
+				intentSteps.setAction(ACTION_STEPS);
+				intentSteps.putExtra(ACTION_STEPS, steps);
+				startService(intentSteps);
+			}
 		}
 	}
 
 	// Logic
 
-	private void handleStart(Intent intent) {
+	private void handleInit(Intent intent) {
+		Log.w(TAG, "Init");
+	}
+
+	private void handleWatchdog(Intent intent) {
+		Log.w(TAG, "Watchdog");
 	}
 
 	private void handleActivityRecognition(Intent intent) {
@@ -208,6 +259,8 @@ public class BackgroundService extends IntentService implements
 				.extractResult(intent);
 		DetectedActivity mostProbableActivity = result
 				.getMostProbableActivity();
+		Log.w(TAG, "Activity type=" + mostProbableActivity.getType()
+				+ " confidence=" + mostProbableActivity.getConfidence());
 
 		boolean newActivity = false;
 		if (mostProbableActivity.getType() != DetectedActivity.TILTING)
@@ -233,7 +286,7 @@ public class BackgroundService extends IntentService implements
 				LocationManager.KEY_LOCATION_CHANGED);
 
 		// Register location
-		Log.w(TAG, "Updating location=" + location);
+		Log.w(TAG, "Location=" + location);
 		new DatabaseHelper(this).registerActivityData(new ActivityData(
 				ActivityData.TYPE_TRACKPOINT, location));
 	}
@@ -250,11 +303,11 @@ public class BackgroundService extends IntentService implements
 		int steps = intent.getIntExtra(ACTION_STEPS, -1);
 		int last = prefs.getInt("Steps", 0);
 		int delta = steps - last;
-		Log.w(TAG, "Steps=" + steps + " Delta=" + delta);
+		Log.w(TAG, "Steps=" + steps + " Delta=" + delta + " Register="
+				+ (delta >= minStepDelta));
 
 		// Register steps
 		if (delta >= minStepDelta) {
-			Log.w(TAG, "Updating steps, delta=" + delta);
 			new DatabaseHelper(this).registerActivityData(new ActivityData(
 					delta));
 
