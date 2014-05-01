@@ -2,6 +2,7 @@
 <resources>
 
     <string name="app_name">Activity tracker</string>
+    <string name="action_writegpx">Write GPX file</string>
     <string name="action_settings">Settings</string>
     <string name="title_boot">Boot</string>
     <string name="title_in_vehicle">In vehicle</string>

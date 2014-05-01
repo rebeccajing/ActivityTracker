@@ -19,7 +19,9 @@ package biz.bokhorst.activitytracker;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,6 +34,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
+import android.util.Log;
 import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -42,10 +46,10 @@ import android.widget.BaseExpandableListAdapter;
 import android.widget.ExpandableListView;
 import android.widget.TextView;
 
+import biz.bokhorst.activitytracker.DatabaseHelper.ActivityData;
 import biz.bokhorst.activitytracker.R;
 
 public class ActivityMain extends Activity {
-	@SuppressWarnings("unused")
 	private static String TAG = "ATRACKER";
 
 	private static ExecutorService mExecutor = Executors.newFixedThreadPool(
@@ -86,8 +90,25 @@ public class ActivityMain extends Activity {
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		int id = item.getItemId();
-		if (id == R.id.action_settings)
+		if (id == R.id.action_writegpx) {
+			// Write GPX file
+			try {
+				String trackName = "ActivityTracker";
+				String gpxFileName = Environment.getExternalStorageDirectory()
+						+ "/" + trackName + ".gpx";
+				Log.w(TAG, "Writing file=" + gpxFileName);
+				DatabaseHelper dbHelper = new DatabaseHelper(this);
+				List<ActivityData> listActivity = dbHelper.getActivityData(0,
+						Long.MAX_VALUE);
+				GPXFileWriter.writeGpxFile(trackName, listActivity, new File(
+						gpxFileName));
+			} catch (Throwable ex) {
+				Log.e(TAG, ex.toString());
+			}
 			return true;
+		} else if (id == R.id.action_settings) {
+			return true;
+		}
 		return super.onOptionsItemSelected(item);
 	}
 

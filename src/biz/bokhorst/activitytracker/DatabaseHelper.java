@@ -19,7 +19,9 @@ package biz.bokhorst.activitytracker;
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 import com.google.android.gms.location.DetectedActivity;
@@ -285,6 +287,32 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		} finally {
 			db.endTransaction();
 		}
+		return result;
+	}
+
+	public List<ActivityData> getActivityData(long from, long to) {
+		List<ActivityData> result = new ArrayList<ActivityData>();
+
+		SQLiteDatabase db = getReadableDatabase();
+		db.beginTransaction();
+		try {
+			Cursor cursor = db.query("data", new String[] { "time", "type",
+					"data" }, "time>? AND time<?",
+					new String[] { Long.toString(from), Long.toString(to) },
+					null, null, "time");
+			try {
+			} finally {
+				while (cursor.moveToNext())
+					result.add(ActivityData.FromBlob(cursor.getLong(0),
+							cursor.getInt(1), cursor.getBlob(2)));
+				cursor.close();
+			}
+
+			db.setTransactionSuccessful();
+		} finally {
+			db.endTransaction();
+		}
+
 		return result;
 	}
 
