@@ -98,22 +98,27 @@ public class BackgroundService extends IntentService {
 
 	private void ensureWatchdog() {
 		if (watchdogPendingIntent == null) {
-			// TODO: get settings
-			long interval = 60L * 1000L;
-
 			// Build pending intent
 			Intent watchdogIntent = new Intent(this, BackgroundService.class);
 			watchdogIntent.setAction(BackgroundService.ACTION_WATCHDOG);
 			watchdogPendingIntent = PendingIntent.getService(this, 0,
 					watchdogIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-			// Setup watchdog
-			AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
-			long watchdogTime = SystemClock.elapsedRealtime() + interval;
-			alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-					watchdogTime, watchdogPendingIntent);
+			// Start watchdog
+			startWatchdog();
 			Log.w(TAG, "Watchdog started");
 		}
+	}
+
+	private void startWatchdog() {
+		// TODO: get settings
+		long interval = 60L * 1000L;
+
+		// Start watchdog timer
+		AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+		long watchdogTime = SystemClock.elapsedRealtime() + interval;
+		alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, watchdogTime,
+				watchdogPendingIntent);
 	}
 
 	// Activity recognition setup
@@ -249,6 +254,9 @@ public class BackgroundService extends IntentService {
 
 	private void handleWatchdog(Intent intent) {
 		Log.w(TAG, "Watchdog");
+
+		// Start watchdog
+		startWatchdog();
 	}
 
 	private void handleActivityRecognition(Intent intent) {
