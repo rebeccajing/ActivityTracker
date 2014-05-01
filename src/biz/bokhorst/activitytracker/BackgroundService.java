@@ -112,7 +112,7 @@ public class BackgroundService extends IntentService {
 
 	private void startWatchdog() {
 		// TODO: get settings
-		long interval = 60L * 1000L;
+		long interval = 10L * 60L * 1000L;
 
 		// Start watchdog timer
 		AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
@@ -156,7 +156,7 @@ public class BackgroundService extends IntentService {
 		@Override
 		public void onConnected(Bundle hint) {
 			// TODO: settings
-			int interval = 60 * 1000;
+			long interval = 60L * 1000L;
 
 			// Build pending intent
 			Intent activityIntent = new Intent(BackgroundService.this,
@@ -183,8 +183,8 @@ public class BackgroundService extends IntentService {
 		if (locationPendingIntent == null) {
 			// TODO: settings
 			int locationAccuracy = Criteria.POWER_LOW;
-			int minTime = 60 * 1000;
-			int minDistance = 50;
+			long minTime = 60L * 1000L;
+			float minDistance = 50.0F;
 
 			// Build pending intent
 			Intent locationIntent = new Intent(this, BackgroundService.class);

@@ -136,7 +136,7 @@ public class ActivityMain extends Activity {
 			@Override
 			public int getGroupCount() {
 				if (count == 0)
-					count = mDatabaseHelper.getActivityCount();
+					count = (int) mDatabaseHelper.getActivityCount();
 				return count;
 			}
 
@@ -236,7 +236,7 @@ public class ActivityMain extends Activity {
 			public int getChildrenCount(int groupPosition) {
 				int id = (Integer) getGroup(groupPosition);
 				if (mapCount.get(id) == null)
-					mapCount.put(id, mDatabaseHelper.getDetailCount(id));
+					mapCount.put(id, (int) mDatabaseHelper.getDetailCount(id));
 				return mapCount.get(id);
 			}
 

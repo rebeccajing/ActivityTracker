@@ -70,12 +70,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 	public boolean registerActivityRecord(ActivityRecord record) {
 		long id = -1;
-		ContentValues cv = new ContentValues();
 
 		SQLiteDatabase db = getWritableDatabase();
 		try {
 			db.beginTransaction();
 			try {
+				ContentValues cv = new ContentValues();
+
 				Cursor cursor = db.query("activity", new String[] { "ID",
 						"activity" }, null, new String[] {}, null, null,
 						"start DESC LIMIT 1");
@@ -84,18 +85,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 							&& cursor.getLong(1) == record.activity) {
 						id = cursor.getLong(0);
 						cv.put("stop", record.start);
-					} else {
-						cv.put("start", record.start);
-						cv.put("stop", record.start);
-						cv.put("activity", record.activity);
 					}
 				} finally {
 					cursor.close();
 				}
 
-				if (id == -1)
+				if (id < 0) {
+					cv.put("start", record.start);
+					cv.put("stop", record.start);
+					cv.put("activity", record.activity);
 					db.insert("activity", null, cv);
-				else
+				} else
 					db.update("activity", cv, "ID=?",
 							new String[] { Long.toString(id) });
 
@@ -110,12 +110,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return (id == -1);
 	}
 
-	public void registerActivityData(ActivityData data) {
-		SQLiteDatabase db = getWritableDatabase();
+	public long getLastActivityRecordId() {
+		long id = -1;
+
+		SQLiteDatabase db = getReadableDatabase();
 		try {
 			db.beginTransaction();
 			try {
-				long id = -1;
 				Cursor cursor = db
 						.query("activity", new String[] { "ID", }, null,
 								new String[] {}, null, null,
@@ -127,16 +128,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 					cursor.close();
 				}
 
-				if (id >= 0) {
-					ContentValues cv = new ContentValues();
-					cv.put("activity", id);
-					cv.put("time", data.time);
-					cv.put("type", data.type);
-					cv.put("data", data.getBlob());
-					db.insert("data", null, cv);
-				} else
-					Log.w(TAG, "No activity for data");
-
 				db.setTransactionSuccessful();
 			} finally {
 				db.endTransaction();
@@ -144,17 +135,74 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		} finally {
 			db.close();
 		}
+
+		return id;
 	}
 
-	public int getActivityCount() {
-		int count = 0;
+	public void registerActivityData(ActivityData data) {
+		long id = getLastActivityRecordId();
+		if (id < 0)
+			Log.w(TAG, "No activity for data");
+		else {
+			SQLiteDatabase db = getWritableDatabase();
+			try {
+				db.beginTransaction();
+				try {
+					long actid = -1;
+					ContentValues cv = new ContentValues();
+
+					// Aggregate steps
+					if (data.type == ActivityData.TYPE_STEPS) {
+						Cursor cursor = db.query("data", new String[] { "ID",
+								"time", "type", "data" }, "activity=?",
+								new String[] { Long.toString(id) }, null, null,
+								"time DESC LIMIT 1");
+						try {
+							if (cursor.moveToFirst())
+								if (cursor.getInt(2) == ActivityData.TYPE_STEPS) {
+									actid = cursor.getLong(0);
+									ActivityData prev = ActivityData
+											.FromBlob(cursor.getLong(1),
+													cursor.getInt(2),
+													cursor.getBlob(3));
+									prev.steps += data.steps;
+									cv.put("data", prev.getBlob());
+								}
+						} finally {
+							cursor.close();
+						}
+					}
+
+					if (actid < 0) {
+						cv.put("activity", id);
+						cv.put("time", data.time);
+						cv.put("type", data.type);
+						cv.put("data", data.getBlob());
+						db.insert("data", null, cv);
+					} else {
+						db.update("data", cv, "ID=?",
+								new String[] { Long.toString(actid) });
+					}
+
+					db.setTransactionSuccessful();
+				} finally {
+					db.endTransaction();
+				}
+			} finally {
+				db.close();
+			}
+		}
+	}
+
+	public long getActivityCount() {
+		long count = 0;
 		SQLiteDatabase db = getReadableDatabase();
 		db.beginTransaction();
 		try {
 			Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM activity", null);
 			try {
 				if (cursor.moveToFirst())
-					count = cursor.getInt(0);
+					count = cursor.getLong(0);
 			} finally {
 				cursor.close();
 			}
@@ -166,8 +214,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return count;
 	}
 
-	public int getDetailCount(int id) {
-		int count = 0;
+	public long getDetailCount(long id) {
+		long count = 0;
 		SQLiteDatabase db = getReadableDatabase();
 		db.beginTransaction();
 		try {
@@ -175,7 +223,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 					"SELECT COUNT(*) FROM data WHERE activity=" + id, null);
 			try {
 				if (cursor.moveToFirst())
-					count = cursor.getInt(0);
+					count = cursor.getLong(0);
 			} finally {
 				cursor.close();
 			}
@@ -187,14 +235,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return count;
 	}
 
-	public ActivityRecord getActivityRecord(int id) {
+	public ActivityRecord getActivityRecord(long id) {
 		ActivityRecord result = null;
 		SQLiteDatabase db = getReadableDatabase();
 		db.beginTransaction();
 		try {
 			Cursor cursor = db.query("activity", new String[] { "start",
 					"stop", "activity" }, "ID=?",
-					new String[] { Integer.toString(id) }, null, null, null);
+					new String[] { Long.toString(id) }, null, null, null);
 			try {
 				if (cursor.moveToFirst()) {
 					result = new ActivityRecord();
@@ -213,14 +261,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 		return result;
 	}
 
-	public ActivityData getActivityData(int id, int index) {
+	public ActivityData getActivityData(long id, int index) {
 		ActivityData result = null;
 		SQLiteDatabase db = getReadableDatabase();
 		db.beginTransaction();
 		try {
 			Cursor cursor = db.query("data", new String[] { "time", "type",
-					"data" }, "activity=?",
-					new String[] { Integer.toString(id) }, null, null, "time");
+					"data" }, "activity=?", new String[] { Long.toString(id) },
+					null, null, "time");
 			try {
 				if (cursor.moveToFirst())
 					while (--index > 0)
